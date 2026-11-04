@@ -40,6 +40,22 @@
       font-size: 14px;
       opacity: 0.8;
     }
+    #loading-screen .loading-retry {
+      margin-top: 24px;
+      padding: 10px 24px;
+      background: #4ade80;
+      color: #1a2b22;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #loading-screen .loading-retry:hover {
+      background: #22c55e;
+    }
+    #loading-screen .loading-retry.hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -52,6 +68,7 @@
       <div class="progress-fill" id="loading-progress"></div>
     </div>
     <div class="loading-text" id="loading-text">Initializing...</div>
+    <button id="loading-retry" class="loading-retry hidden" onclick="window.location.reload()">Retry</button>
   </div>
 
   <!-- Game Container -->
@@ -145,22 +162,14 @@
     </div>
   </div>
 
-  <!-- Import map for Three.js modules -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "./node_modules/three/build/three.module.js",
-        "three/addons/": "./node_modules/three/examples/jsm/"
-      }
-    }
-  </script>
+  <!-- Vite handles module resolution — no importmap needed -->
 
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-    import { MeshoptDecoder } from 'three/addons/decoders/MeshoptDecoder.js';
+    import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
     // Import our modules
     import { Engine } from './js/engine.js';
@@ -248,7 +257,10 @@
 
       } catch (err) {
         console.error('Initialization failed:', err);
-        loadingText.textContent = 'Error: ' + err.message;
+        loadingText.textContent = 'Initialization failed: ' + err.message;
+        loadingText.style.color = '#ff6b6b';
+        const retryBtn = document.getElementById('loading-retry');
+        if (retryBtn) retryBtn.classList.remove('hidden');
       }
     }
 
@@ -409,6 +421,29 @@
       if (e.key === 'Escape' && state.playing && !state.gameOver) {
         state.paused = !state.paused;
         document.getElementById('pause-menu').classList.toggle('hidden', !state.paused);
+      }
+    });
+
+    // Global error handler — never leave user stuck
+    window.addEventListener('error', (e) => {
+      console.error('Uncaught error:', e.error || e.message);
+      const loadingText = document.getElementById('loading-text');
+      const retryBtn = document.getElementById('loading-retry');
+      if (loadingText && !state.initialized) {
+        loadingText.textContent = 'Error: ' + (e.error?.message || e.message);
+        loadingText.style.color = '#ff6b6b';
+        if (retryBtn) retryBtn.classList.remove('hidden');
+      }
+    });
+
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('Unhandled promise rejection:', e.reason);
+      const loadingText = document.getElementById('loading-text');
+      const retryBtn = document.getElementById('loading-retry');
+      if (loadingText && !state.initialized) {
+        loadingText.textContent = 'Error: ' + (e.reason?.message || String(e.reason));
+        loadingText.style.color = '#ff6b6b';
+        if (retryBtn) retryBtn.classList.remove('hidden');
       }
     });
 

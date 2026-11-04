@@ -2,7 +2,7 @@
    Playable fox character: movement, animations, combat */
 
 import * as THREE from 'three';
-import { SkeletonUtils } from 'three/addons/utils/SkeletonUtils.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 export class Player {
   constructor(scene, camera) {
@@ -483,7 +483,8 @@ export class Player {
     // Update global health
     if (typeof window !== 'undefined' && window.state) {
       window.state.health = this.health;
-      document.getElementById('health-fill')?.style.width = ((this.health / this.maxHealth) * 100) + '%';
+      const healthFill = document.getElementById('health-fill');
+      if (healthFill) healthFill.style.width = ((this.health / this.maxHealth) * 100) + '%';
     }
     if (this.health <= 0) {
       this.die();
@@ -584,7 +585,7 @@ export class Player {
     this.camera.lookAt(idealLook);
 
     // Apply pitch (look up/down)
-    this.camera.rotation.x = this.pitch;
+    this.camera.rotation.set(this.pitch, this.camera.rotation.y, this.camera.rotation.z);
     // Re-apply lookAt after pitch adjustment
     this.camera.lookAt(idealLook);
     // Tilt camera by pitch

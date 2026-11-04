@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#2d4a3e">
+  <title>Fox & Serpent — A Woodland Adventure</title>
+  <style>
+    /* Critical inline styles to prevent layout shift */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      background: #1a2b22;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e8f5e9;
+    }
+    #loading-screen .progress-bar {
+      width: 300px;
+      height: 8px;
+      background: #2d4a3e;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 24px;
+    }
+    #loading-screen .progress-fill {
+      width: 0%;
+      height: 100%;
+      background: #4ade80;
+      transition: width 0.1s;
+    }
+    #loading-screen .loading-text {
+      margin-top: 16px;
+      font-size: 14px;
+      opacity: 0.8;
+    }
+    #loading-screen .loading-retry {
+      margin-top: 24px;
+      padding: 10px 24px;
+      background: #4ade80;
+      color: #1a2b22;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #loading-screen .loading-retry:hover {
+      background: #22c55e;
+    }
+    #loading-screen .loading-retry.hidden {
+      display: none;
+    }
+  </style>
+  <script type="module" crossorigin src="/fox-and-serpent/assets/game-Ct3cJnMX.js"></script>
+  <link rel="stylesheet" crossorigin href="/fox-and-serpent/assets/index-C1vsqyGn.css">
+</head>
+<body>
+
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div style="font-size: 32px; font-weight: 700; letter-spacing: 2px;">FOX &amp; SERPENT</div>
+    <div style="font-size: 16px; margin-top: 8px; opacity: 0.7;">A Woodland Adventure</div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="loading-progress"></div>
+    </div>
+    <div class="loading-text" id="loading-text">Initializing...</div>
+    <button id="loading-retry" class="loading-retry hidden" onclick="window.location.reload()">Retry</button>
+  </div>
+
+  <!-- Game Container -->
+  <div id="game-container"></div>
+
+  <!-- UI Overlay -->
+  <div id="ui-overlay">
+    <!-- Top Left: Health -->
+    <div id="hud-health" class="hud-panel">
+      <div class="hud-label">❤️ LIFE</div>
+      <div class="health-bar">
+        <div class="health-fill" id="health-fill"></div>
+      </div>
+    </div>
+
+    <!-- Top Right: Inventory -->
+    <div id="hud-inventory" class="hud-panel">
+      <div class="hud-label">🎯 TREASURE</div>
+      <div id="treasure-count">0</div>
+    </div>
+
+    <!-- Center: Status messages -->
+    <div id="status-message" class="status-panel"></div>
+
+    <!-- Bottom Left: Virtual Joystick (mobile) -->
+    <div id="joystick-container" class="joystick-container hidden">
+      <div id="joystick-base" class="joystick-base"></div>
+      <div id="joystick-stick" class="joystick-stick"></div>
+    </div>
+
+    <!-- Bottom Right: Action Buttons (mobile) -->
+    <div id="action-buttons" class="action-buttons hidden">
+      <button class="action-btn" id="btn-jump">Jump</button>
+      <button class="action-btn" id="btn-attack">Attack</button>
+      <button class="action-btn" id="btn-bow">Bow</button>
+      <button class="action-btn" id="btn-dodge">Dodge</button>
+      <button class="action-btn" id="btn-interact">Interact</button>
+    </div>
+
+    <!-- Bottom Right: Desktop hints -->
+    <div id="desktop-hints" class="desktop-hints hidden">
+      <div class="hint">WASD / Arrows — Move</div>
+      <div class="hint">Mouse — Look Around</div>
+      <div class="hint">Space — Jump &nbsp;|&nbsp; Shift — Sprint</div>
+      <div class="hint">Left Click — Attack &nbsp;|&nbsp; Right Click — Bow</div>
+      <div class="hint">E — Interact &nbsp;|&nbsp; Q — Dodge</div>
+    </div>
+
+    <!-- Pause Menu -->
+    <div id="pause-menu" class="modal hidden">
+      <div class="modal-content">
+        <h2>Paused</h2>
+        <button class="btn btn-primary" onclick="resumeGame()">Resume</button>
+        <button class="btn btn-secondary" onclick="saveGame()">Save Game</button>
+        <button class="btn btn-secondary" onclick="loadGame()">Load Game</button>
+        <button class="btn btn-secondary" onclick="toggleGraphics()">Graphics: <span id="graphics-setting">Medium</span></button>
+        <button class="btn btn-danger" onclick="quitToMenu()">Quit to Menu</button>
+      </div>
+    </div>
+
+    <!-- Game Over -->
+    <div id="game-over-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2 style="color: #ff6b6b;">Defeated</h2>
+        <p id="game-over-reason">The serpent's minions proved too strong.</p>
+        <button class="btn btn-primary" onclick="restartLevel()">Try Again</button>
+        <button class="btn btn-secondary" onclick="quitToMenu()">Main Menu</button>
+      </div>
+    </div>
+
+    <!-- Victory -->
+    <div id="victory-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2 style="color: #4ade80;">Victory!</h2>
+        <p id="victory-text">You have prevailed.</p>
+        <button class="btn btn-primary" onclick="nextLevel()">Continue</button>
+      </div>
+    </div>
+
+    <!-- Main Menu -->
+    <div id="main-menu" class="modal">
+      <div class="modal-content menu-content">
+        <h1 style="font-size: 48px; margin-bottom: 8px;">FOX &amp; SERPENT</h1>
+        <div style="font-size: 18px; opacity: 0.8; margin-bottom: 32px;">A Woodland Adventure</div>
+        <button class="btn btn-primary btn-large" onclick="startNewGame()">New Game</button>
+        <button class="btn btn-secondary btn-large" onclick="loadGame()">Continue</button>
+        <button class="btn btn-secondary btn-large" onclick="toggleGraphics()">Graphics: <span id="menu-graphics-setting">Medium</span></button>
+        <button class="btn btn-secondary btn-large" onclick="showControls()">Controls</button>
+        <button class="btn btn-danger btn-large" onclick="toggleSound()">Sound: <span id="menu-sound">On</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vite handles module resolution — no importmap needed -->
+
+</body>
+</html>
