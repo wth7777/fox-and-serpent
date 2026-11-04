@@ -1,7 +1,12 @@
 /* FOX & SERPENT — Environment Module
-   Procedural forest terrain, trees, vegetation, and level geometry */
+   1970s animated cartoon style — painterly woodland backgrounds
+
+   Procedural forest terrain with cel-shaded materials and cartoon outlines.
+   Hand-painted look, warm colors, no photorealistic PBR.
+*/
 
 import * as THREE from 'three';
+import { createOutlinedMesh, CARTOON_COLORS } from './cel-shading.js';
 
 export class Environment {
   constructor(scene, engine) {
@@ -33,12 +38,9 @@ export class Environment {
     // Large terrain plane
     const groundSize = 200;
     const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, 64, 64);
-    const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x5d7a4a,
-      roughness: 1.0,
-      flatShading: true
-    });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
+    const ground = createOutlinedMesh(groundGeo, {
+      color: CARTOON_COLORS.grassGreen
+    }, this.scene, false);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     ground.name = 'ground';
@@ -97,7 +99,7 @@ export class Environment {
     skyGeo.scale(-1, 1, 1); // Invert normals so we see the inside
 
     const skyMat = new THREE.MeshStandardMaterial({
-      color: 0x87ceeb,
+      color: CARTOON_COLORS.skyBlue,
       side: THREE.BackSide,
       roughness: 1.0,
       metalness: 0.0
@@ -126,7 +128,7 @@ export class Environment {
 
     const pathGeo = new THREE.BufferGeometry().setFromPoints(pathPoints);
     // We'll render as a line-based visual (simple) — in production use extruded geometry
-    const pathMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1.0 });
+    const pathMat = new THREE.MeshStandardMaterial({ color: CARTOON_COLORS.dirtBrown, roughness: 1.0 });
 
     // Create path as series of quads
     const pathGroup = new THREE.Group();
@@ -157,7 +159,7 @@ export class Environment {
     const grassGroup = new THREE.Group();
 
     const grassGeo = new THREE.ConeGeometry(0.15, 0.5, 4);
-    const grassMat = new THREE.MeshStandardMaterial({ color: 0x6b8e23, roughness: 1.0 });
+    const grassMat = new THREE.MeshStandardMaterial({ color: CARTOON_COLORS.grassGreen, roughness: 1.0 });
 
     for (let i = 0; i < count; i++) {
       const x = (Math.random() - 0.5) * 160;
@@ -209,7 +211,7 @@ export class Environment {
     const trunkHeight = 4 + Math.random() * 4;
     const trunkRadius = 0.25 + Math.random() * 0.2;
     const trunkGeo = new THREE.CylinderGeometry(trunkRadius, trunkRadius * 1.2, trunkHeight, 8);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 1.0 });
+    const trunkMat = new THREE.MeshStandardMaterial({ color: CARTOON_COLORS.treeTrunk, roughness: 1.0 });
     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
     trunk.position.y = trunkHeight / 2;
     trunk.castShadow = true;
@@ -222,7 +224,7 @@ export class Environment {
       const foliageRadius = 1.5 + Math.random() * 1.5;
       const foliageGeo = new THREE.SphereGeometry(foliageRadius, 8, 8);
       const foliageMat = new THREE.MeshStandardMaterial({
-        color: 0x2d5a27 + Math.floor(Math.random() * 0x111111),
+        color: CARTOON_COLORS.foliageGreen,
         roughness: 1.0
       });
       const foliage = new THREE.Mesh(foliageGeo, foliageMat);
@@ -245,7 +247,7 @@ export class Environment {
     const rockGroup = new THREE.Group();
 
     const rockGeo = new THREE.IcosahedronGeometry(0.8, 1);
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x6b7a8a, roughness: 1.0 });
+    const rockMat = new THREE.MeshStandardMaterial({ color: CARTOON_COLORS.stoneGray, roughness: 1.0 });
 
     for (let i = 0; i < count; i++) {
       const rock = new THREE.Mesh(rockGeo, rockMat);
@@ -304,7 +306,7 @@ export class Environment {
     const waterMat = new THREE.MeshStandardMaterial({
       color: 0x4a90c2,
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.8,
       roughness: 0.1
     });
     const water = new THREE.Mesh(waterGeo, waterMat);

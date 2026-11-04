@@ -1,17 +1,16 @@
 /* FOX & SERPENT — Main Entry Point
+   1970s animated cartoon movie visual style
    Initializes all game systems and starts the game loop */
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import '../css/style.css';
+import { CARTOON_COLORS } from './cel-shading.js';
 
 // Import our modules
 import { Engine } from './engine.js';
 import { InputHandler } from './input.js';
-import { Player } from './player.js';
+import { FoxCharacter } from './fox-character.js';
 import { Environment } from './environment.js';
 import { AudioManager } from './audio.js';
 import { SaveSystem } from './save.js';
@@ -34,12 +33,16 @@ const state = {
 };
 
 // Systems
-let engine, input, player, environment, audio, save;
+let engine, input, fox, environment, audio, save;
 
 // Loading screen elements
 const loadingScreen = document.getElementById('loading-screen');
 const loadingProgress = document.getElementById('loading-progress');
 const loadingText = document.getElementById('loading-text');
+
+// Camera close-up state
+let closeUpMode = false;
+let closeUpTimer = 0;
 
 // Initialize
 async function init() {
@@ -57,12 +60,12 @@ async function init() {
     environment = new Environment(engine.scene, engine);
     await environment.init();
 
-    updateLoading(40, 'Loading character...');
-    player = new Player(engine.scene, engine.camera);
-    await player.init();
+    updateLoading(40, 'Creating cartoon fox...');
+    fox = new FoxCharacter(engine.scene);
+    await fox.init();
 
     updateLoading(55, 'Setting up input...');
-    input = new InputHandler(engine.renderer.domElement, player);
+    input = new InputHandler(engine.renderer.domElement, fox);
 
     updateLoading(65, 'Initializing audio...');
     audio = new AudioManager();
@@ -116,14 +119,46 @@ function gameLoop(currentTime) {
 
   if (!state.paused && !state.gameOver && state.playing) {
     input.update(state.deltaTime);
-    player.update(state.deltaTime);
+    fox.update(state.deltaTime);
     environment.update(state.deltaTime);
     audio.update(state.deltaTime);
+
+    updateCamera(deltaTime);
   }
 
   engine.render();
 
   requestAnimationFrame(gameLoop);
+}
+
+function updateCamera(dt) {
+  if (!fox || !engine.camera) return;
+
+  if (closeUpMode) {
+    closeUpTimer += dt;
+    // Close-up on fox face
+    const foxPos = fox.getPosition();
+    engine.camera.position.lerp(
+      new THREE.Vector3(foxPos.x, foxPos.y + 0.8, foxPos.z + 1.2),
+      dt * 3
+    );
+    engine.camera.lookAt(foxPos.x, foxPos.y + 0.5, foxPos.z);
+
+    if (closeUpTimer > 4) {
+      closeUpMode = false;
+    }
+  } else {
+    // Normal third-person follow
+    const camOffset = new THREE.Vector3(0, 3, 6);
+    camOffset.applyQuaternion(
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, fox.mesh.rotation.y, 0))
+    );
+    const idealPos = fox.mesh.position.clone().add(camOffset);
+    const idealLook = fox.mesh.position.clone().add(new THREE.Vector3(0, 1.5, 0));
+
+    engine.camera.position.lerp(idealPos, dt * 5);
+    engine.camera.lookAt(idealLook);
+  }
 }
 
 // Game flow
@@ -144,8 +179,12 @@ window.startNewGame = function() {
   state.treasure = 0;
   updateHUD();
   environment.resetLevel();
-  player.resetPosition();
+  fox.resetPosition();
   audio.playGameMusic();
+
+  // Cinematic close-up on start
+  closeUpMode = true;
+  closeUpTimer = 0;
 };
 
 window.loadGame = function() {
@@ -160,7 +199,7 @@ window.loadGame = function() {
   state.playing = true;
   state.paused = false;
   environment.resetLevel();
-  player.resetPosition();
+  fox.resetPosition();
   audio.playGameMusic();
 };
 
@@ -217,7 +256,7 @@ window.nextLevel = function() {
   document.getElementById('victory-modal').classList.add('hidden');
   state.level++;
   environment.resetLevel();
-  player.resetPosition();
+  fox.resetPosition();
   state.playing = true;
   state.paused = false;
 };
