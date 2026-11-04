@@ -34844,7 +34844,6 @@ var CameraController = class {
 		this.userRotatingTimer = 0;
 		this.collisionRaycaster = new Raycaster();
 		this.collisionTargets = [];
-		this.updateCameraPosition();
 	}
 	setCollisionObjects(objects) {
 		this.collisionTargets = objects;

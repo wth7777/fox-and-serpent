@@ -45,8 +45,8 @@ export class CameraController {
     this.collisionRaycaster = new THREE.Raycaster();
     this.collisionTargets = [];
 
-    // Initialize camera position
-    this.updateCameraPosition();
+    // Camera position is set in update() once target is assigned
+    // No updateCameraPosition() call here — target is null at construction
   }
 
   // Set objects that camera can collide with
