@@ -93,16 +93,38 @@ export class Environment {
   }
 
   createSkybox() {
-    // Simple procedural skybox using a large sphere with gradient material
-    // No external textures required
+    // Warm sunset skybox — 1970s animation style
+    // Gradient from warm yellow at horizon to soft blue at top
     const skyGeo = new THREE.SphereGeometry(500, 32, 32);
-    skyGeo.scale(-1, 1, 1); // Invert normals so we see the inside
+    skyGeo.scale(-1, 1, 1);
 
-    const skyMat = new THREE.MeshStandardMaterial({
-      color: CARTOON_COLORS.skyBlue,
-      side: THREE.BackSide,
-      roughness: 1.0,
-      metalness: 0.0
+    // Create gradient sky texture
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.createImageData(1, size);
+    const data = imageData.data;
+
+    for (let i = 0; i < size; i++) {
+      const t = i / (size - 1);
+      const offset = i * 4;
+      // Warm sunset: yellow/orange at bottom, soft blue at top
+      data[offset] = Math.floor(135 + (100 - 135) * t);     // R
+      data[offset + 1] = Math.floor(206 + (150 - 206) * t); // G
+      data[offset + 2] = Math.floor(235 + (180 - 235) * t); // B
+      data[offset + 3] = 255;
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    const skyTexture = new THREE.CanvasTexture(canvas);
+    skyTexture.magFilter = THREE.LinearFilter;
+    skyTexture.minFilter = THREE.LinearFilter;
+
+    const skyMat = new THREE.MeshBasicMaterial({
+      map: skyTexture,
+      side: THREE.BackSide
     });
 
     const skybox = new THREE.Mesh(skyGeo, skyMat);
@@ -112,8 +134,9 @@ export class Environment {
     this.scene.add(skybox);
     this.objects.push(skybox);
 
-    // Set scene background to match sky color
+    // Set scene background to match sky
     this.scene.background = new THREE.Color(0x87ceeb);
+    this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0012);
   }
 
   createPath() {
@@ -207,33 +230,49 @@ export class Environment {
   createTree() {
     const group = new THREE.Group();
 
-    // Trunk
-    const trunkHeight = 4 + Math.random() * 4;
-    const trunkRadius = 0.25 + Math.random() * 0.2;
-    const trunkGeo = new THREE.CylinderGeometry(trunkRadius, trunkRadius * 1.2, trunkHeight, 8);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: CARTOON_COLORS.treeTrunk, roughness: 1.0 });
+    // Stylized trunk — slightly tapered, cartoon proportions
+    const trunkHeight = 3.5 + Math.random() * 3;
+    const trunkRadius = 0.22 + Math.random() * 0.15;
+    const trunkGeo = new THREE.CylinderGeometry(
+      trunkRadius * 1.1, trunkRadius * 0.7, trunkHeight, 6
+    );
+    const trunkMat = new THREE.MeshStandardMaterial({
+      color: CARTOON_COLORS.treeTrunk,
+      roughness: 1.0
+    });
     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
     trunk.position.y = trunkHeight / 2;
     trunk.castShadow = true;
     trunk.receiveShadow = true;
     group.add(trunk);
 
-    // Foliage (layers of spheres)
-    const foliageCount = 3 + Math.floor(Math.random() * 2);
+    // Stylized foliage — layered cloud-like clusters (not perfect spheres)
+    const foliageCount = 4 + Math.floor(Math.random() * 3);
     for (let j = 0; j < foliageCount; j++) {
-      const foliageRadius = 1.5 + Math.random() * 1.5;
-      const foliageGeo = new THREE.SphereGeometry(foliageRadius, 8, 8);
+      const foliageRadius = 1.2 + Math.random() * 1.0;
+      // Slightly irregular spheres for hand-drawn look
+      const foliageGeo = new THREE.IcosahedronGeometry(foliageRadius, 1);
+      // Slightly scale non-uniformly for irregular shape
+      const sx = 0.85 + Math.random() * 0.3;
+      const sy = 0.85 + Math.random() * 0.3;
+      const sz = 0.85 + Math.random() * 0.3;
+      foliageGeo.scale(sx, sy, sz);
+
+      // Vary foliage color slightly for hand-painted look
+      const hueVariation = (Math.random() - 0.5) * 0.1;
       const foliageMat = new THREE.MeshStandardMaterial({
-        color: CARTOON_COLORS.foliageGreen,
+        color: new THREE.Color(CARTOON_COLORS.foliageGreen).offsetHSL(hueVariation, 0, 0),
         roughness: 1.0
       });
       const foliage = new THREE.Mesh(foliageGeo, foliageMat);
       foliage.position.set(
-        (Math.random() - 0.5) * 0.8,
-        trunkHeight + j * 1.2 + Math.random(),
-        (Math.random() - 0.5) * 0.8
+        (Math.random() - 0.5) * 0.9,
+        trunkHeight + j * 1.1 + Math.random() * 0.5,
+        (Math.random() - 0.5) * 0.9
       );
-      foliage.scale.setScalar(0.9 + Math.random() * 0.3);
+      // Random rotation for irregular look
+      foliage.rotation.set(Math.random() * 0.5, Math.random() * 0.5, Math.random() * 0.5);
+      foliage.scale.setScalar(0.85 + Math.random() * 0.3);
       foliage.castShadow = true;
       foliage.receiveShadow = true;
       group.add(foliage);

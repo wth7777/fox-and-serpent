@@ -33363,14 +33363,81 @@ var WebGLRenderer = class {
 	}
 };
 // js/cel-shading.js
-function createToonGradient(size = 16) {
+function createToonGradient(size = 16, style = "warm") {
 	const canvas = document.createElement("canvas");
 	canvas.width = size;
 	canvas.height = 1;
 	const ctx = canvas.getContext("2d");
 	const imageData = ctx.createImageData(size, 1);
 	const data = imageData.data;
-	const colors = [
+	let colors;
+	if (style === "warm") colors = [
+		{
+			r: 70,
+			g: 45,
+			b: 35
+		},
+		{
+			r: 140,
+			g: 100,
+			b: 80
+		},
+		{
+			r: 220,
+			g: 170,
+			b: 130
+		},
+		{
+			r: 255,
+			g: 230,
+			b: 190
+		}
+	];
+	else if (style === "cool") colors = [
+		{
+			r: 40,
+			g: 60,
+			b: 80
+		},
+		{
+			r: 80,
+			g: 120,
+			b: 160
+		},
+		{
+			r: 140,
+			g: 190,
+			b: 220
+		},
+		{
+			r: 200,
+			g: 230,
+			b: 255
+		}
+	];
+	else if (style === "character") colors = [
+		{
+			r: 90,
+			g: 50,
+			b: 40
+		},
+		{
+			r: 180,
+			g: 110,
+			b: 70
+		},
+		{
+			r: 240,
+			g: 160,
+			b: 110
+		},
+		{
+			r: 255,
+			g: 210,
+			b: 170
+		}
+	];
+	else colors = [
 		{
 			r: 60,
 			g: 40,
@@ -33410,34 +33477,46 @@ function createToonGradient(size = 16) {
 	texture.wrapT = ClampToEdgeWrapping;
 	return texture;
 }
-var outlineMaterial = new MeshBasicMaterial({
-	color: 2759194,
+new MeshBasicMaterial({
+	color: 1710618,
 	side: 1,
 	depthWrite: false,
 	fog: false
 });
 function createCelMaterial(color, options = {}) {
-	const { gradientSize = 16, outline = true, outlineThickness = 1.02, shininess = 0 } = options;
-	const gradientMap = createToonGradient(gradientSize);
+	const { gradientSize = 16, outline = true, outlineThickness = 1.025, outlineColor = 1710618, gradientStyle = "warm", rimLighting = false, rimColor = 16766720, rimStrength = .5 } = options;
+	const gradientMap = createToonGradient(gradientSize, gradientStyle);
+	const material = new MeshToonMaterial({
+		color,
+		gradientMap,
+		fog: true
+	});
+	material.userData.outlineColor = outlineColor;
+	material.userData.outlineThickness = outlineThickness;
+	material.userData.hasOutline = outline;
+	material.userData.rimLighting = rimLighting;
+	material.userData.rimColor = rimColor;
+	material.userData.rimStrength = rimStrength;
 	return {
-		material: new MeshToonMaterial({
-			color,
-			gradientMap,
-			fog: true
-		}),
+		material,
 		gradientMap,
 		outline,
-		outlineMaterial,
-		outlineThickness
+		outlineThickness,
+		outlineColor
 	};
 }
 function createOutlinedMesh(geometry, materialOptions, scene, castShadow = true) {
-	const { material, outline, outlineMaterial, outlineThickness } = createCelMaterial(materialOptions.color, materialOptions);
+	const { material, outline, outlineThickness, outlineColor } = createCelMaterial(materialOptions.color, materialOptions);
 	const mesh = new Mesh(geometry, material);
 	mesh.castShadow = castShadow;
 	mesh.receiveShadow = true;
 	if (outline) {
-		const outlineMesh = new Mesh(geometry, outlineMaterial);
+		const outlineMesh = new Mesh(geometry, new MeshBasicMaterial({
+			color: outlineColor,
+			side: 1,
+			depthWrite: false,
+			fog: false
+		}));
 		outlineMesh.scale.setScalar(outlineThickness);
 		outlineMesh.castShadow = false;
 		outlineMesh.receiveShadow = false;
@@ -33451,27 +33530,47 @@ function createOutlinedMesh(geometry, materialOptions, scene, castShadow = true)
 }
 var CARTOON_COLORS = {
 	foxOrange: 16739125,
+	foxOrangeDark: 15227439,
+	foxOrangeLight: 16747622,
 	foxCream: 16773077,
-	foxDarkOrange: 15227439,
+	foxCreamDark: 15259832,
 	foxNose: 2759194,
 	foxEye: 16777215,
 	foxPupil: 0,
+	foxEyeHighlight: 4886754,
 	grassGreen: 7048739,
-	grassLight: 9417578,
-	grassDark: 4877114,
+	grassGreenDark: 4877114,
+	grassGreenLight: 9417578,
+	grassYellow: 10145074,
 	dirtBrown: 9268835,
-	dirtLight: 11110773,
+	dirtBrownDark: 7162945,
+	dirtBrownLight: 11110773,
 	treeTrunk: 6111287,
+	treeTrunkDark: 4008743,
 	treeTrunkLight: 7951688,
 	foliageGreen: 2972199,
-	foliageLight: 4881497,
+	foliageGreenDark: 1980954,
+	foliageGreenLight: 4881497,
+	foliageYellow: 7048739,
 	skyBlue: 8900331,
+	skyBlueDeep: 4886722,
+	skyBlueLight: 11588835,
 	stoneGray: 8359053,
-	stoneLight: 9807270,
+	stoneGrayDark: 6122878,
+	stoneGrayLight: 9807270,
 	woodBrown: 9268835,
-	woodDark: 7162945,
+	woodBrownDark: 7162945,
+	woodBrownLight: 12360314,
 	gold: 15844367,
-	warmRed: 15158332
+	warmRed: 15158332,
+	sunsetOrange: 16747586,
+	sunsetYellow: 16766720,
+	serpentGreen: 2972199,
+	serpentGreenDark: 1718810,
+	serpentGreenLight: 4881497,
+	serpentGold: 15844367,
+	serpentPurple: 7091331,
+	serpentPurpleDark: 4858714
 };
 // node_modules/three/examples/jsm/controls/OrbitControls.js
 /**
@@ -34651,10 +34750,10 @@ var Engine = class {
 		this.scene.traverse((child) => {
 			if (child.isLight) this.scene.remove(child);
 		});
-		this.ambientLight = new AmbientLight(16777215, .4);
+		this.ambientLight = new AmbientLight(16773337, .35);
 		this.scene.add(this.ambientLight);
-		this.directionalLight = new DirectionalLight(16777215, 1.2);
-		this.directionalLight.position.set(10, 20, 10);
+		this.directionalLight = new DirectionalLight(16768405, 1.1);
+		this.directionalLight.position.set(15, 25, 10);
 		this.directionalLight.castShadow = true;
 		this.directionalLight.shadow.mapSize.width = 2048;
 		this.directionalLight.shadow.mapSize.height = 2048;
@@ -34666,7 +34765,10 @@ var Engine = class {
 		this.directionalLight.shadow.camera.bottom = -30;
 		this.directionalLight.shadow.bias = -5e-4;
 		this.scene.add(this.directionalLight);
-		const hemiLight = new HemisphereLight(8900331, 4860970, .3);
+		this.rimLight = new DirectionalLight(16766720, .4);
+		this.rimLight.position.set(-10, 15, -10);
+		this.scene.add(this.rimLight);
+		const hemiLight = new HemisphereLight(8900331, 4860970, .25);
 		this.scene.add(hemiLight);
 		console.log("Engine lighting setup complete");
 	}
@@ -35183,7 +35285,6 @@ var FoxCharacter = class {
 		this.isSprinting = false;
 		this.frameTime = 0;
 		this.frameStep = 1 / 12;
-		this.lastFrameTime = 0;
 		this.squashStretch = 1;
 		this.targetSquashStretch = 1;
 		this.tailSway = 0;
@@ -35208,7 +35309,7 @@ var FoxCharacter = class {
 		group.name = "fox";
 		this.bones.hips = new Group();
 		this.bones.hips.name = "hips";
-		this.bones.hips.position.set(0, 1.1, 0);
+		this.bones.hips.position.set(0, 1, 0);
 		group.add(this.bones.hips);
 		this.bones.spine = new Group();
 		this.bones.spine.name = "spine";
@@ -35220,142 +35321,170 @@ var FoxCharacter = class {
 		this.bones.spine.add(this.bones.chest);
 		this.bones.neck = new Group();
 		this.bones.neck.name = "neck";
-		this.bones.neck.position.set(0, .25, 0);
+		this.bones.neck.position.set(0, .3, 0);
 		this.bones.chest.add(this.bones.neck);
 		this.bones.head = new Group();
 		this.bones.head.name = "head";
-		this.bones.head.position.set(0, .2, .15);
+		this.bones.head.position.set(0, .25, .2);
 		this.bones.neck.add(this.bones.head);
-		const body = new Mesh(new CapsuleGeometry(.42, .9, 6, 12), this.createBodyMaterial(CARTOON_COLORS.foxOrange));
-		body.position.set(0, .45, 0);
+		const body = new Mesh(new CapsuleGeometry(.38, .8, 6, 12), new MeshStandardMaterial({
+			color: CARTOON_COLORS.foxOrange,
+			roughness: .85,
+			metalness: 0
+		}));
+		body.position.set(0, .4, 0);
 		body.rotation.x = Math.PI / 2;
 		body.name = "body";
 		body.castShadow = true;
 		body.receiveShadow = true;
 		this.bones.spine.add(body);
-		const chest = new Mesh(new SphereGeometry(.38, 8, 8), this.createBodyMaterial(CARTOON_COLORS.foxOrange));
-		chest.position.set(0, .15, .25);
+		const chest = new Mesh(new SphereGeometry(.34, 8, 8), new MeshStandardMaterial({
+			color: CARTOON_COLORS.foxOrange,
+			roughness: .85
+		}));
+		chest.position.set(0, .15, .28);
 		chest.name = "chest-puff";
 		chest.castShadow = true;
 		chest.receiveShadow = true;
 		this.bones.chest.add(chest);
-		const belly = new Mesh(new SphereGeometry(.32, 8, 8), this.createBodyMaterial(CARTOON_COLORS.foxCream));
-		belly.position.set(0, -.05, .3);
+		const belly = new Mesh(new SphereGeometry(.3, 8, 8), new MeshStandardMaterial({
+			color: CARTOON_COLORS.foxCream,
+			roughness: .85
+		}));
+		belly.position.set(0, -.05, .32);
 		belly.name = "belly";
 		belly.castShadow = true;
 		belly.receiveShadow = true;
 		this.bones.chest.add(belly);
-		const head = new Mesh(new CapsuleGeometry(.32, .5, 6, 12), this.createBodyMaterial(CARTOON_COLORS.foxOrange));
-		head.position.set(0, .25, 0);
-		head.rotation.x = Math.PI / 2;
+		const head = new Mesh(new SphereGeometry(.42, 12, 12), new MeshStandardMaterial({
+			color: CARTOON_COLORS.foxOrange,
+			roughness: .85
+		}));
+		head.position.set(0, .35, 0);
 		head.name = "head-main";
 		head.castShadow = true;
 		head.receiveShadow = true;
 		this.bones.head.add(head);
-		const muzzle = new Mesh(new CapsuleGeometry(.16, .45, 6, 12), this.createBodyMaterial(CARTOON_COLORS.foxCream));
-		muzzle.position.set(0, .05, .55);
+		const muzzle = new Mesh(new CapsuleGeometry(.2, .55, 6, 12), new MeshStandardMaterial({
+			color: CARTOON_COLORS.foxCream,
+			roughness: .85
+		}));
+		muzzle.position.set(0, .05, .62);
 		muzzle.rotation.x = Math.PI / 2;
 		muzzle.name = "muzzle";
 		muzzle.castShadow = true;
 		muzzle.receiveShadow = true;
 		this.bones.head.add(muzzle);
-		const nose = new Mesh(new SphereGeometry(.07, 8, 8), new MeshStandardMaterial({ color: CARTOON_COLORS.foxNose }));
-		nose.position.set(0, .02, .85);
+		const nose = new Mesh(new SphereGeometry(.09, 8, 8), new MeshStandardMaterial({ color: CARTOON_COLORS.foxNose }));
+		nose.position.set(0, .02, .98);
 		nose.name = "nose";
 		nose.castShadow = true;
 		this.bones.head.add(nose);
-		const eyeGeo = new SphereGeometry(.11, 10, 10);
+		const eyeGeo = new SphereGeometry(.15, 12, 12);
 		const eyeMat = new MeshStandardMaterial({ color: CARTOON_COLORS.foxEye });
 		const leftEye = new Mesh(eyeGeo, eyeMat);
-		leftEye.position.set(-.14, .1, .6);
+		leftEye.position.set(-.19, .12, .75);
 		leftEye.name = "leftEye";
 		leftEye.castShadow = true;
 		this.bones.head.add(leftEye);
 		const rightEye = new Mesh(eyeGeo, eyeMat);
-		rightEye.position.set(.14, .1, .6);
+		rightEye.position.set(.19, .12, .75);
 		rightEye.name = "rightEye";
 		rightEye.castShadow = true;
 		this.bones.head.add(rightEye);
-		const pupilGeo = new SphereGeometry(.05, 8, 8);
+		const pupilGeo = new SphereGeometry(.07, 8, 8);
 		const pupilMat = new MeshStandardMaterial({ color: CARTOON_COLORS.foxPupil });
 		const leftPupil = new Mesh(pupilGeo, pupilMat);
-		leftPupil.position.set(-.14, .1, .66);
+		leftPupil.position.set(-.19, .12, .81);
 		leftPupil.name = "leftPupil";
 		this.bones.head.add(leftPupil);
 		const rightPupil = new Mesh(pupilGeo, pupilMat);
-		rightPupil.position.set(.14, .1, .66);
+		rightPupil.position.set(.19, .12, .81);
 		rightPupil.name = "rightPupil";
 		this.bones.head.add(rightPupil);
-		const earGeo = new ConeGeometry(.11, .5, 4);
-		const earMat = this.createBodyMaterial(CARTOON_COLORS.foxOrange);
+		const highlightGeo = new SphereGeometry(.04, 6, 6);
+		const highlightMat = new MeshBasicMaterial({ color: 16777215 });
+		const leftHighlight = new Mesh(highlightGeo, highlightMat);
+		leftHighlight.position.set(-.17, .14, .84);
+		leftHighlight.name = "leftHighlight";
+		this.bones.head.add(leftHighlight);
+		const rightHighlight = new Mesh(highlightGeo, highlightMat);
+		rightHighlight.position.set(.17, .14, .84);
+		rightHighlight.name = "rightHighlight";
+		this.bones.head.add(rightHighlight);
+		const earGeo = new ConeGeometry(.14, .65, 4);
+		const earMat = new MeshStandardMaterial({
+			color: CARTOON_COLORS.foxOrange,
+			roughness: .85
+		});
 		const leftEar = new Mesh(earGeo, earMat);
-		leftEar.position.set(-.18, .35, -.05);
-		leftEar.rotation.z = -.4;
+		leftEar.position.set(-.25, .45, -.05);
+		leftEar.rotation.z = -.5;
+		leftEar.rotation.x = -.2;
 		leftEar.name = "leftEar";
 		leftEar.castShadow = true;
 		leftEar.receiveShadow = true;
 		this.bones.head.add(leftEar);
 		const rightEar = new Mesh(earGeo, earMat);
-		rightEar.position.set(.18, .35, -.05);
-		rightEar.rotation.z = .4;
+		rightEar.position.set(.25, .45, -.05);
+		rightEar.rotation.z = .5;
+		rightEar.rotation.x = -.2;
 		rightEar.name = "rightEar";
 		rightEar.castShadow = true;
 		rightEar.receiveShadow = true;
 		this.bones.head.add(rightEar);
-		const innerEarGeo = new ConeGeometry(.06, .35, 4);
-		const innerEarMat = this.createBodyMaterial(CARTOON_COLORS.foxCream);
+		const innerEarGeo = new ConeGeometry(.08, .45, 4);
+		const innerEarMat = new MeshStandardMaterial({
+			color: CARTOON_COLORS.foxCream,
+			roughness: .85
+		});
 		const leftInnerEar = new Mesh(innerEarGeo, innerEarMat);
-		leftInnerEar.position.set(-.18, .35, -.05);
-		leftInnerEar.rotation.z = -.4;
+		leftInnerEar.position.set(-.25, .45, -.05);
+		leftInnerEar.rotation.z = -.5;
+		leftInnerEar.rotation.x = -.2;
 		leftInnerEar.name = "leftInnerEar";
 		this.bones.head.add(leftInnerEar);
 		const rightInnerEar = new Mesh(innerEarGeo, innerEarMat);
-		rightInnerEar.position.set(.18, .35, -.05);
-		rightInnerEar.rotation.z = .4;
+		rightInnerEar.position.set(.25, .45, -.05);
+		rightInnerEar.rotation.z = .5;
+		rightInnerEar.rotation.x = -.2;
 		rightInnerEar.name = "rightInnerEar";
 		this.bones.head.add(rightInnerEar);
-		const legGeo = new CapsuleGeometry(.13, .55, 6, 12);
-		const legMat = this.createBodyMaterial(CARTOON_COLORS.foxOrange);
-		[
-			{
-				name: "frontLeft",
-				x: -.28,
-				z: .2
-			},
-			{
-				name: "frontRight",
-				x: .28,
-				z: .2
-			},
-			{
-				name: "backLeft",
-				x: -.28,
-				z: -.2
-			},
-			{
-				name: "backRight",
-				x: .28,
-				z: -.2
-			}
-		].forEach((pos) => {
+		const legGeo = new CapsuleGeometry(.16, .65, 6, 12);
+		const legMat = new MeshStandardMaterial({
+			color: CARTOON_COLORS.foxOrange,
+			roughness: .85
+		});
+		[{
+			name: "leftLeg",
+			x: -.2,
+			z: 0
+		}, {
+			name: "rightLeg",
+			x: .2,
+			z: 0
+		}].forEach((pos) => {
 			const legGroup = new Group();
 			legGroup.name = pos.name;
 			legGroup.position.set(pos.x, .05, pos.z);
 			this.bones.hips.add(legGroup);
 			const thigh = new Mesh(legGeo, legMat);
-			thigh.position.set(0, .28, 0);
+			thigh.position.set(0, .33, 0);
 			thigh.rotation.x = Math.PI / 2;
 			thigh.castShadow = true;
 			thigh.receiveShadow = true;
 			legGroup.add(thigh);
 			const shin = new Mesh(legGeo, legMat);
-			shin.position.set(0, -.28, 0);
+			shin.position.set(0, -.33, 0);
 			shin.rotation.x = Math.PI / 2;
 			shin.castShadow = true;
 			shin.receiveShadow = true;
 			thigh.add(shin);
-			const paw = new Mesh(new SphereGeometry(.11, 8, 8), this.createBodyMaterial(CARTOON_COLORS.foxCream));
-			paw.position.set(0, -.58, 0);
+			const paw = new Mesh(new SphereGeometry(.14, 8, 8), new MeshStandardMaterial({
+				color: CARTOON_COLORS.foxCream,
+				roughness: .85
+			}));
+			paw.position.set(0, -.68, 0);
 			paw.name = pos.name + "-paw";
 			paw.castShadow = true;
 			shin.add(paw);
@@ -35365,23 +35494,30 @@ var FoxCharacter = class {
 			this.bones[pos.name + "Paw"] = paw;
 		});
 		this.tailSegments = [];
-		const tailSegmentCount = 5;
+		const tailSegmentCount = 6;
 		let tailParent = this.bones.hips;
 		for (let i = 0; i < tailSegmentCount; i++) {
 			const tailSeg = new Group();
 			tailSeg.name = `tailSeg${i}`;
-			tailSeg.position.set(0, .1, -.1 - i * .18);
-			tailSeg.rotation.x = -.3 + i * .1;
+			tailSeg.position.set(0, .15, -.12 - i * .16);
+			tailSeg.rotation.x = -.25 + i * .08;
 			tailParent.add(tailSeg);
-			const tailMesh = new Mesh(new CylinderGeometry(.14 - i * .02, .1 - i * .02, .18, 6), this.createBodyMaterial(CARTOON_COLORS.foxOrange));
-			tailMesh.position.set(0, -.09, 0);
+			const tailRadius = .16 - i * .02;
+			const tailMesh = new Mesh(new CylinderGeometry(tailRadius, Math.max(tailRadius - .02, .06), .16, 6), new MeshStandardMaterial({
+				color: CARTOON_COLORS.foxOrange,
+				roughness: .85
+			}));
+			tailMesh.position.set(0, -.08, 0);
 			tailMesh.rotation.x = Math.PI / 2;
 			tailMesh.castShadow = true;
 			tailMesh.receiveShadow = true;
 			tailSeg.add(tailMesh);
-			if (i === 4) {
-				const tip = new Mesh(new SphereGeometry(.12, 8, 8), this.createBodyMaterial(CARTOON_COLORS.foxCream));
-				tip.position.set(0, -.18, 0);
+			if (i === 5) {
+				const tip = new Mesh(new SphereGeometry(.15, 8, 8), new MeshStandardMaterial({
+					color: CARTOON_COLORS.foxCream,
+					roughness: .85
+				}));
+				tip.position.set(0, -.16, 0);
 				tip.name = "tailTip";
 				tip.castShadow = true;
 				tailSeg.add(tip);
@@ -35390,21 +35526,30 @@ var FoxCharacter = class {
 			tailParent = tailSeg;
 		}
 		this.bones.tailBase = this.tailSegments[0];
-		const tunic = new Mesh(new CapsuleGeometry(.44, .7, 6, 12), new MeshStandardMaterial({
+		const tunic = new Mesh(new CapsuleGeometry(.42, .65, 6, 12), new MeshStandardMaterial({
 			color: 4881497,
 			roughness: .9
 		}));
-		tunic.position.set(0, .5, 0);
+		tunic.position.set(0, .45, 0);
 		tunic.rotation.x = Math.PI / 2;
 		tunic.name = "tunic";
 		tunic.castShadow = true;
 		tunic.receiveShadow = true;
 		this.bones.spine.add(tunic);
-		const bow = new Mesh(new CylinderGeometry(.035, .035, 1.1, 6), new MeshStandardMaterial({
+		const belt = new Mesh(new TorusGeometry(.38, .03, 4, 16), new MeshStandardMaterial({
 			color: 6111287,
 			roughness: .9
 		}));
-		bow.position.set(0, .35, -.35);
+		belt.rotation.x = Math.PI / 2;
+		belt.position.set(0, .4, .3);
+		belt.name = "belt";
+		belt.castShadow = true;
+		this.bones.chest.add(belt);
+		const bow = new Mesh(new CylinderGeometry(.035, .035, 1, 6), new MeshStandardMaterial({
+			color: 6111287,
+			roughness: .9
+		}));
+		bow.position.set(0, .4, -.4);
 		bow.rotation.z = Math.PI / 2;
 		bow.name = "bow";
 		bow.castShadow = true;
@@ -35425,17 +35570,14 @@ var FoxCharacter = class {
 				left: leftPupil,
 				right: rightPupil
 			},
+			highlights: {
+				left: leftHighlight,
+				right: rightHighlight
+			},
 			muzzle: this.bones.head.children.find((c) => c.name === "muzzle"),
+			nose,
 			body
 		};
-	}
-	createBodyMaterial(color) {
-		return new MeshStandardMaterial({
-			color,
-			roughness: .85,
-			metalness: 0,
-			flatShading: false
-		});
 	}
 	playAnimation(name) {
 		if (this.state === name) return;
@@ -35449,7 +35591,7 @@ var FoxCharacter = class {
 		this.moveX = moveX;
 		this.moveZ = moveZ;
 		if (this.isMoving) {
-			this.targetSpeed = this.isSprinting ? 12 : this.state === "run" ? 8 : 5;
+			this.targetSpeed = this.isSprinting ? 11 : this.state === "run" ? 7.5 : 5;
 			if (this.isSprinting) this.playAnimation("run");
 			else this.playAnimation("walk");
 			const targetAngle = Math.atan2(moveX, moveZ);
@@ -35483,9 +35625,25 @@ var FoxCharacter = class {
 		if (this.state === "attack" || this.state === "dodge") return;
 		this.playAnimation("attack");
 	}
+	shootBow() {
+		if (this.state === "attack" || this.state === "dodge") return;
+		this.playAnimation("attack");
+	}
 	dodge() {
 		if (this.state === "dodge" || this.state === "attack") return;
 		this.playAnimation("dodge");
+	}
+	takeDamage() {
+		if (this.state === "damage" || this.state === "defeat") return;
+		this.playAnimation("damage");
+	}
+	victory() {
+		if (this.state === "victory") return;
+		this.playAnimation("victory");
+	}
+	defeat() {
+		if (this.state === "defeat") return;
+		this.playAnimation("defeat");
 	}
 	update(dt) {
 		if (!this.mesh) return;
@@ -35560,166 +35718,200 @@ var FoxCharacter = class {
 			case "attack":
 				this.animateAttack(t);
 				break;
-			case "dodge": this.animateDodge(t);
+			case "dodge":
+				this.animateDodge(t);
+				break;
+			case "damage":
+				this.animateDamage(t);
+				break;
+			case "victory":
+				this.animateVictory(t);
+				break;
+			case "defeat": this.animateDefeat(t);
 		}
-		if (isMoving) {
+		if (isMoving && this.state !== "attack" && this.state !== "dodge") {
 			const headTurn = Math.sin(t * 4) * .1;
 			this.bones.head.rotation.y = headTurn;
 			this.bones.head.rotation.x = Math.sin(t * 3) * .05;
-		} else {
+		} else if (this.state === "idle") {
 			this.bones.head.rotation.y = Math.sin(t * 2) * .08;
 			this.bones.head.rotation.x = Math.sin(t * 3) * .04;
 		}
 	}
 	animateIdle(t) {
-		const breath = Math.sin(t * 3) * .02;
+		const breath = Math.sin(t * 3) * .025;
 		this.bones.spine.position.y = .4 + breath;
-		this.bones.chest.scale.set(1 + breath * .5, 1 + breath * .3, 1 + breath * .2);
+		this.bones.chest.scale.set(1 + breath * .4, 1 + breath * .25, 1 + breath * .2);
 		this.tailSway += dt * 2;
-		const tailSway = Math.sin(this.tailSway) * .15;
+		const tailSway = Math.sin(this.tailSway) * .18;
 		if (this.tailSegments[0]) {
 			this.tailSegments[0].rotation.z = tailSway;
 			this.tailSegments[1].rotation.z = tailSway * .7;
-			this.tailSegments[2].rotation.z = tailSway * .4;
-			this.tailSegments[3].rotation.z = tailSway * .2;
-			this.tailSegments[4].rotation.z = tailSway * .1;
+			this.tailSegments[2].rotation.z = tailSway * .45;
+			this.tailSegments[3].rotation.z = tailSway * .25;
+			this.tailSegments[4].rotation.z = tailSway * .15;
+			this.tailSegments[5].rotation.z = tailSway * .08;
 		}
 		this.earTwitch += dt * 3;
-		const earTwitch = Math.sin(this.earTwitch) * .1;
+		const earTwitch = Math.sin(this.earTwitch) * .12;
 		const leftEar = this.bones.head.children.find((c) => c.name === "leftEar");
 		const rightEar = this.bones.head.children.find((c) => c.name === "rightEar");
-		if (leftEar) leftEar.rotation.z = -.4 + earTwitch * .5;
-		if (rightEar) rightEar.rotation.z = .4 - earTwitch * .5;
+		if (leftEar) leftEar.rotation.z = -.5 + earTwitch * .6;
+		if (rightEar) rightEar.rotation.z = .5 - earTwitch * .6;
 		this.updateBlink();
-		this.bobOffset = Math.sin(t * 2) * .01;
+		this.bobOffset = Math.sin(t * 2) * .012;
 		this.mesh.position.y = 1 + this.bobOffset;
 	}
 	animateWalk(t) {
 		const walkSpeed = t * 8;
 		const legCycle = Math.sin(walkSpeed);
 		const legCycle2 = Math.cos(walkSpeed);
-		const bounce = Math.abs(Math.sin(walkSpeed * 2)) * .04;
+		const bounce = Math.abs(Math.sin(walkSpeed * 2)) * .05;
 		this.mesh.position.y = 1 + bounce;
-		this.targetSquashStretch = 1 + Math.sin(walkSpeed * 2) * .1;
-		this.bones.spine.rotation.z = Math.sin(walkSpeed) * .08;
-		this.bones.chest.rotation.x = Math.sin(walkSpeed * 2) * .1;
-		const legLift = Math.max(0, Math.sin(walkSpeed)) * .5;
-		this.animateLegs(legCycle, legCycle2, legLift, .9);
+		this.targetSquashStretch = 1 + Math.sin(walkSpeed * 2) * .12;
+		this.bones.spine.rotation.z = Math.sin(walkSpeed) * .1;
+		this.bones.chest.rotation.x = Math.sin(walkSpeed * 2) * .12;
+		this.animateLegs(legCycle, legCycle2, .9);
 		this.tailSway += dt * 4;
-		Math.abs(Math.sin(this.tailSway * 2)) * .2;
 		if (this.tailSegments[0]) {
-			this.tailSegments[0].rotation.z = Math.sin(this.tailSway) * .25;
-			this.tailSegments[1].rotation.z = Math.sin(this.tailSway + .5) * .2;
-			this.tailSegments[2].rotation.z = Math.sin(this.tailSway + 1) * .15;
+			this.tailSegments[0].rotation.z = Math.sin(this.tailSway) * .28;
+			this.tailSegments[1].rotation.z = Math.sin(this.tailSway + .5) * .22;
+			this.tailSegments[2].rotation.z = Math.sin(this.tailSway + 1) * .18;
+			this.tailSegments[3].rotation.z = Math.sin(this.tailSway + 1.5) * .14;
 		}
-		this.bones.head.rotation.x = Math.sin(walkSpeed * 2) * .1;
-		this.bones.head.rotation.y = Math.sin(walkSpeed) * .15;
+		this.bones.head.rotation.x = Math.sin(walkSpeed * 2) * .12;
+		this.bones.head.rotation.y = Math.sin(walkSpeed) * .18;
 		this.updateBlink();
 	}
 	animateRun(t) {
 		const runSpeed = t * 12;
 		const legCycle = Math.sin(runSpeed);
 		const legCycle2 = Math.cos(runSpeed);
-		this.bones.spine.rotation.x = .25 + Math.sin(runSpeed) * .1;
-		this.bones.chest.rotation.x = .15;
-		const bounce = Math.abs(Math.sin(runSpeed * 2)) * .08;
+		this.bones.spine.rotation.x = .3 + Math.sin(runSpeed) * .12;
+		this.bones.chest.rotation.x = .18;
+		const bounce = Math.abs(Math.sin(runSpeed * 2)) * .1;
 		this.mesh.position.y = 1 + bounce;
-		this.targetSquashStretch = 1 + Math.sin(runSpeed * 2) * .15;
-		this.animateLegs(legCycle, legCycle2, .8, 1.2);
+		this.targetSquashStretch = 1 + Math.sin(runSpeed * 2) * .18;
+		this.animateLegs(legCycle, legCycle2, .95, 1.3);
 		if (this.tailSegments[0]) {
-			this.tailSegments[0].rotation.z = -.3 + Math.sin(runSpeed) * .2;
-			this.tailSegments[1].rotation.z = -.4 + Math.sin(runSpeed + .3) * .2;
-			this.tailSegments[2].rotation.z = -.5 + Math.sin(runSpeed + .6) * .2;
-			this.tailSegments[3].rotation.z = -.6 + Math.sin(runSpeed + .9) * .2;
-			this.tailSegments[4].rotation.z = -.7 + Math.sin(runSpeed + 1.2) * .2;
+			this.tailSegments[0].rotation.z = -.35 + Math.sin(runSpeed) * .22;
+			this.tailSegments[1].rotation.z = -.45 + Math.sin(runSpeed + .3) * .2;
+			this.tailSegments[2].rotation.z = -.55 + Math.sin(runSpeed + .6) * .18;
+			this.tailSegments[3].rotation.z = -.65 + Math.sin(runSpeed + .9) * .16;
+			this.tailSegments[4].rotation.z = -.75 + Math.sin(runSpeed + 1.2) * .14;
+			this.tailSegments[5].rotation.z = -.85 + Math.sin(runSpeed + 1.5) * .12;
 		}
-		this.bones.head.rotation.x = -.1;
+		this.bones.head.rotation.x = -.12;
 		this.bones.head.rotation.y = 0;
 		this.updateBlink();
 	}
 	animateLegs(cycle, cycle2, lift, speedMult) {
-		const fl = this.bones.frontLeft;
-		const br = this.bones.backRight;
-		if (fl && br) {
-			const angle = Math.sin(cycle) * .8 * speedMult;
-			fl.rotation.x = -angle;
-			fl.rotation.z = Math.cos(cycle) * .2;
-			br.rotation.x = -angle;
-			br.rotation.z = Math.cos(cycle) * .2;
+		const leftLeg = this.bones.leftLeg;
+		if (leftLeg) {
+			const angle = Math.sin(cycle) * .9 * speedMult;
+			leftLeg.rotation.x = -angle;
+			leftLeg.rotation.z = Math.cos(cycle) * .25;
 		}
-		const fr = this.bones.frontRight;
-		const bl = this.bones.backLeft;
-		if (fr && bl) {
-			const angle = Math.sin(cycle + Math.PI) * .8 * speedMult;
-			fr.rotation.x = -angle;
-			fr.rotation.z = Math.cos(cycle + Math.PI) * .2;
-			bl.rotation.x = -angle;
-			bl.rotation.z = Math.cos(cycle + Math.PI) * .2;
+		const rightLeg = this.bones.rightLeg;
+		if (rightLeg) {
+			const angle = Math.sin(cycle + Math.PI) * .9 * speedMult;
+			rightLeg.rotation.x = -angle;
+			rightLeg.rotation.z = Math.cos(cycle + Math.PI) * .25;
 		}
 	}
 	animateJump(t) {
 		if (this.jumpPhase === 1) {
-			const crouchScale = 1 - Math.sin(t * 5) * .3;
-			this.mesh.scale.set(crouchScale, Math.max(.6, crouchScale * .7), crouchScale);
-			this.mesh.position.y = 1 - (1 - crouchScale) * .4;
+			const crouchScale = 1 - Math.sin(t * 5) * .35;
+			this.mesh.scale.set(crouchScale, Math.max(.6, crouchScale * .75), crouchScale);
+			this.mesh.position.y = 1 - (1 - crouchScale) * .45;
 			const leftEar = this.bones.head.children.find((c) => c.name === "leftEar");
 			const rightEar = this.bones.head.children.find((c) => c.name === "rightEar");
-			if (leftEar) leftEar.rotation.z = -.8;
-			if (rightEar) rightEar.rotation.z = .8;
+			if (leftEar) leftEar.rotation.z = -.9;
+			if (rightEar) rightEar.rotation.z = .9;
 		} else if (this.jumpPhase === 2) {
-			this.mesh.scale.set(.9, 1.3, .9);
-			this.bones.frontLeft.rotation.x = -.5;
-			this.bones.frontRight.rotation.x = -.5;
-			this.bones.backLeft.rotation.x = -.5;
-			this.bones.backRight.rotation.x = -.5;
+			this.mesh.scale.set(.85, 1.35, .85);
+			this.bones.leftLeg.rotation.x = -.6;
+			this.bones.rightLeg.rotation.x = -.6;
 		} else if (this.jumpPhase === 3) {
-			this.mesh.scale.set(1.1, .85, 1.1);
-			this.bones.frontLeft.rotation.x = .3;
-			this.bones.frontRight.rotation.x = .3;
-			this.bones.backLeft.rotation.x = .3;
-			this.bones.backRight.rotation.x = .3;
+			this.mesh.scale.set(1.15, .8, 1.15);
+			this.bones.leftLeg.rotation.x = .35;
+			this.bones.rightLeg.rotation.x = .35;
 		}
 	}
 	animateLand(t) {
-		const squashAmount = Math.max(0, Math.cos(t * 10) * .4);
+		const squashAmount = Math.max(0, Math.cos(t * 10) * .45);
 		this.mesh.scale.set(1 + squashAmount, Math.max(.6, 1 - squashAmount), 1 + squashAmount);
 		if (t > .2) this.mesh.scale.set(1, 1, 1);
 	}
 	animateAttack(t) {
-		const phase = t * 6;
-		if (phase < .3) {
-			this.bones.chest.rotation.z = -.2;
-			this.bones.spine.rotation.z = .1;
-		} else if (phase < .6) {
-			this.bones.chest.rotation.z = .4;
-			this.bones.spine.rotation.z = -.2;
-			this.targetSquashStretch = 1.2;
+		const phase = t * 7;
+		if (phase < .25) {
+			this.bones.chest.rotation.z = -.25;
+			this.bones.spine.rotation.z = .15;
+		} else if (phase < .55) {
+			this.bones.chest.rotation.z = .45;
+			this.bones.spine.rotation.z = -.25;
+			this.targetSquashStretch = 1.25;
 		} else {
-			this.bones.chest.rotation.z = Math.sin((phase - .6) * 10) * .1;
-			this.bones.spine.rotation.z = -Math.sin((phase - .6) * 10) * .05;
+			const overshoot = Math.sin((phase - .55) * 12) * .08;
+			this.bones.chest.rotation.z = overshoot;
+			this.bones.spine.rotation.z = -overshoot * .5;
 		}
 	}
 	animateDodge(t) {
-		const phase = t * 8;
-		if (phase < .25) this.targetSquashStretch = .6;
-		else if (phase < .5) {
-			this.targetSquashStretch = 1.4;
-			this.mesh.scale.set(.8, 1.5, .8);
+		const phase = t * 9;
+		if (phase < .2) this.targetSquashStretch = .55;
+		else if (phase < .45) {
+			this.targetSquashStretch = 1.45;
+			this.mesh.scale.set(.75, 1.55, .75);
 		} else this.targetSquashStretch = 1;
+	}
+	animateDamage(t) {
+		const phase = t * 5;
+		if (phase < .3) {
+			this.bones.chest.rotation.z = .3;
+			this.bones.spine.rotation.x = .2;
+			this.targetSquashStretch = .8;
+		} else if (phase < .6) {
+			this.bones.chest.rotation.z = .3 * Math.cos((phase - .3) * 10);
+			this.bones.spine.rotation.x = .2 * Math.cos((phase - .3) * 10);
+		} else this.targetSquashStretch = 1;
+	}
+	animateVictory(t) {
+		t * 3;
+		const jumpOffset = Math.abs(Math.sin(t * 4)) * .15;
+		this.mesh.position.y = 1 + jumpOffset;
+		if (this.tailSegments[0]) {
+			this.tailSegments[0].rotation.z = Math.sin(t * 6) * .4;
+			this.tailSegments[1].rotation.z = Math.sin(t * 6 + .5) * .3;
+		}
+		const leftEar = this.bones.head.children.find((c) => c.name === "leftEar");
+		const rightEar = this.bones.head.children.find((c) => c.name === "rightEar");
+		if (leftEar) leftEar.rotation.z = -.2 + Math.sin(t * 3) * .1;
+		if (rightEar) rightEar.rotation.z = .2 - Math.sin(t * 3) * .1;
+	}
+	animateDefeat(t) {
+		const phase = t * 2;
+		if (phase < 1) {
+			this.bones.spine.rotation.x = Math.min(.8, phase * .8);
+			this.bones.head.rotation.x = Math.min(.5, phase * .5);
+			this.mesh.position.y = 1 - phase * .3;
+		}
+		this.mesh.scale.set(1, .7, 1);
 	}
 	updateSecondaryMotion(dt) {
 		if (this.isMoving) {
-			const tailReact = Math.sin(this.stateTime * 5) * .1;
+			const tailReact = Math.sin(this.stateTime * 5) * .12;
 			if (this.tailSegments[0]) {
 				this.tailSegments[0].rotation.z += tailReact * dt * 3;
-				this.tailSegments[0].rotation.z = Math.max(-.8, Math.min(.8, this.tailSegments[0].rotation.z));
+				this.tailSegments[0].rotation.z = Math.max(-.9, Math.min(.9, this.tailSegments[0].rotation.z));
 			}
 		}
 		const earTime = this.stateTime * 4;
 		const leftEar = this.bones.head.children.find((c) => c.name === "leftEar");
 		const rightEar = this.bones.head.children.find((c) => c.name === "rightEar");
-		if (leftEar && this.state === "idle") leftEar.rotation.z = -.4 + Math.sin(earTime) * .15;
-		if (rightEar && this.state === "idle") rightEar.rotation.z = .4 - Math.sin(earTime + 1) * .15;
+		if (leftEar && this.state === "idle") leftEar.rotation.z = -.5 + Math.sin(earTime) * .18;
+		if (rightEar && this.state === "idle") rightEar.rotation.z = .5 - Math.sin(earTime + 1) * .18;
 	}
 	updateBlink() {
 		this.blinkTimer += .016;
@@ -35759,8 +35951,8 @@ var FoxCharacter = class {
 		const pupils = [this.bodyParts.pupils.left, this.bodyParts.pupils.right];
 		this.stateTime;
 		if (Math.random() < .02) {
-			const dartX = (Math.random() - .5) * .03;
-			const dartY = (Math.random() - .5) * .02;
+			const dartX = (Math.random() - .5) * .04;
+			const dartY = (Math.random() - .5) * .03;
 			pupils.forEach((pupil) => {
 				if (pupil) pupil.position.set(dartX, dartY, .01);
 			});
@@ -35878,11 +36070,28 @@ var Environment = class {
 	createSkybox() {
 		const skyGeo = new SphereGeometry(500, 32, 32);
 		skyGeo.scale(-1, 1, 1);
-		const skybox = new Mesh(skyGeo, new MeshStandardMaterial({
-			color: CARTOON_COLORS.skyBlue,
-			side: 1,
-			roughness: 1,
-			metalness: 0
+		const size = 64;
+		const canvas = document.createElement("canvas");
+		canvas.width = 1;
+		canvas.height = size;
+		const ctx = canvas.getContext("2d");
+		const imageData = ctx.createImageData(1, size);
+		const data = imageData.data;
+		for (let i = 0; i < size; i++) {
+			const t = i / 63;
+			const offset = i * 4;
+			data[offset] = Math.floor(135 + -35 * t);
+			data[offset + 1] = Math.floor(206 + -56 * t);
+			data[offset + 2] = Math.floor(235 + -55 * t);
+			data[offset + 3] = 255;
+		}
+		ctx.putImageData(imageData, 0, 0);
+		const skyTexture = new CanvasTexture(canvas);
+		skyTexture.magFilter = LinearFilter;
+		skyTexture.minFilter = LinearFilter;
+		const skybox = new Mesh(skyGeo, new MeshBasicMaterial({
+			map: skyTexture,
+			side: 1
 		}));
 		skybox.name = "skybox";
 		skybox.position.set(0, 0, 0);
@@ -35890,6 +36099,7 @@ var Environment = class {
 		this.scene.add(skybox);
 		this.objects.push(skybox);
 		this.scene.background = new Color(8900331);
+		this.scene.fog = new FogExp2(8900331, .0012);
 	}
 	createPath() {
 		const pathPoints = [];
@@ -35962,9 +36172,9 @@ var Environment = class {
 	}
 	createTree() {
 		const group = new Group();
-		const trunkHeight = 4 + Math.random() * 4;
-		const trunkRadius = .25 + Math.random() * .2;
-		const trunk = new Mesh(new CylinderGeometry(trunkRadius, trunkRadius * 1.2, trunkHeight, 8), new MeshStandardMaterial({
+		const trunkHeight = 3.5 + Math.random() * 3;
+		const trunkRadius = .22 + Math.random() * .15;
+		const trunk = new Mesh(new CylinderGeometry(trunkRadius * 1.1, trunkRadius * .7, trunkHeight, 6), new MeshStandardMaterial({
 			color: CARTOON_COLORS.treeTrunk,
 			roughness: 1
 		}));
@@ -35972,14 +36182,21 @@ var Environment = class {
 		trunk.castShadow = true;
 		trunk.receiveShadow = true;
 		group.add(trunk);
-		const foliageCount = 3 + Math.floor(Math.random() * 2);
+		const foliageCount = 4 + Math.floor(Math.random() * 3);
 		for (let j = 0; j < foliageCount; j++) {
-			const foliage = new Mesh(new SphereGeometry(1.5 + Math.random() * 1.5, 8, 8), new MeshStandardMaterial({
-				color: CARTOON_COLORS.foliageGreen,
+			const foliageGeo = new IcosahedronGeometry(1.2 + Math.random() * 1, 1);
+			const sx = .85 + Math.random() * .3;
+			const sy = .85 + Math.random() * .3;
+			const sz = .85 + Math.random() * .3;
+			foliageGeo.scale(sx, sy, sz);
+			const hueVariation = (Math.random() - .5) * .1;
+			const foliage = new Mesh(foliageGeo, new MeshStandardMaterial({
+				color: new Color(CARTOON_COLORS.foliageGreen).offsetHSL(hueVariation, 0, 0),
 				roughness: 1
 			}));
-			foliage.position.set((Math.random() - .5) * .8, trunkHeight + j * 1.2 + Math.random(), (Math.random() - .5) * .8);
-			foliage.scale.setScalar(.9 + Math.random() * .3);
+			foliage.position.set((Math.random() - .5) * .9, trunkHeight + j * 1.1 + Math.random() * .5, (Math.random() - .5) * .9);
+			foliage.rotation.set(Math.random() * .5, Math.random() * .5, Math.random() * .5);
+			foliage.scale.setScalar(.85 + Math.random() * .3);
 			foliage.castShadow = true;
 			foliage.receiveShadow = true;
 			group.add(foliage);

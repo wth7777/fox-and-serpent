@@ -68,13 +68,13 @@ export class Engine {
       if (child.isLight) this.scene.remove(child);
     });
 
-    // Ambient light — soft fill
-    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    // Warm ambient light — soft fill (sunset feel)
+    this.ambientLight = new THREE.AmbientLight(0xfff0d9, 0.35);
     this.scene.add(this.ambientLight);
 
-    // Directional light — sun (key light + shadows)
-    this.directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    this.directionalLight.position.set(10, 20, 10);
+    // Directional light — sun (key light + shadows) — warm sunlight
+    this.directionalLight = new THREE.DirectionalLight(0xffdd95, 1.1);
+    this.directionalLight.position.set(15, 25, 10);
     this.directionalLight.castShadow = true;
     this.directionalLight.shadow.mapSize.width = 2048;
     this.directionalLight.shadow.mapSize.height = 2048;
@@ -87,8 +87,13 @@ export class Engine {
     this.directionalLight.shadow.bias = -0.0005;
     this.scene.add(this.directionalLight);
 
+    // Rim/back light — creates character definition (sunset rim)
+    this.rimLight = new THREE.DirectionalLight(0xffd700, 0.4);
+    this.rimLight.position.set(-10, 15, -10);
+    this.scene.add(this.rimLight);
+
     // Hemisphere light — sky/ground color
-    const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x4a2c2a, 0.3);
+    const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x4a2c2a, 0.25);
     this.scene.add(hemiLight);
 
     console.log('Engine lighting setup complete');
