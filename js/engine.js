@@ -1,6 +1,9 @@
 /* FOX & SERPENT — Engine Module
    Three.js setup: renderer, scene, camera, lighting, render loop */
 
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
 export class Engine {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
@@ -36,7 +39,7 @@ export class Engine {
     this.camera.position.set(0, 4, 8);
 
     // OrbitControls (desktop) — will be replaced by custom camera for gameplay
-    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.1;
