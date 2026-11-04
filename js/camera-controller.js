@@ -54,6 +54,11 @@ export class CameraController {
     this.collisionTargets = objects;
   }
 
+  // Set the camera follow target (fox character)
+  setTarget(target) {
+    this.target = target;
+  }
+
   // Rotate camera (called from input handler)
   rotate(deltaYaw, deltaPitch) {
     this.userRotating = true;

@@ -34848,6 +34848,9 @@ var CameraController = class {
 	setCollisionObjects(objects) {
 		this.collisionTargets = objects;
 	}
+	setTarget(target) {
+		this.target = target;
+	}
 	rotate(deltaYaw, deltaPitch) {
 		this.userRotating = true;
 		this.userRotatingTimer = 0;
