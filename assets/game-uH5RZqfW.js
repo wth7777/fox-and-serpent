@@ -35626,8 +35626,8 @@ var FoxCharacter = class {
 		this.playAnimation("attack");
 	}
 	shootBow() {
-		if (this.state === "attack" || this.state === "dodge") return;
-		this.playAnimation("attack");
+		if (this.state === "attack" || this.state === "dodge" || this.state === "bow") return;
+		this.playAnimation("bow");
 	}
 	dodge() {
 		if (this.state === "dodge" || this.state === "attack") return;
@@ -35717,6 +35717,9 @@ var FoxCharacter = class {
 				break;
 			case "attack":
 				this.animateAttack(t);
+				break;
+			case "bow":
+				this.animateBow(t);
 				break;
 			case "dodge":
 				this.animateDodge(t);
@@ -35856,6 +35859,32 @@ var FoxCharacter = class {
 			const overshoot = Math.sin((phase - .55) * 12) * .08;
 			this.bones.chest.rotation.z = overshoot;
 			this.bones.spine.rotation.z = -overshoot * .5;
+		}
+	}
+	animateBow(t) {
+		const phase = t * 4;
+		if (phase < .4) {
+			this.bones.chest.rotation.z = -.15;
+			this.bones.spine.rotation.z = .1;
+			this.bones.head.rotation.z = .05;
+			this.bones.rightLeg.rotation.x = .2;
+			this.bones.leftLeg.rotation.x = -.1;
+			this.targetSquashStretch = 1.05;
+		} else if (phase < .8) {
+			this.bones.chest.rotation.z = -.15 + Math.sin(t * 6) * .02;
+			this.bones.spine.rotation.z = .1 + Math.sin(t * 6) * .01;
+			this.bones.head.rotation.z = .05 + Math.sin(t * 8) * .01;
+			this.targetSquashStretch = 1.1;
+		} else if (phase < 1) {
+			this.bones.chest.rotation.z = .2;
+			this.bones.spine.rotation.z = -.1;
+			this.targetSquashStretch = 1.2;
+		} else {
+			const recover = Math.sin((phase - 1) * 10) * .05;
+			this.bones.chest.rotation.z = recover;
+			this.bones.spine.rotation.z = -recover * .3;
+			this.bones.head.rotation.z = 0;
+			this.targetSquashStretch = 1;
 		}
 	}
 	animateDodge(t) {

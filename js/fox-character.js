@@ -480,8 +480,8 @@ export class FoxCharacter {
   }
 
   shootBow() {
-    if (this.state === 'attack' || this.state === 'dodge') return;
-    this.playAnimation('attack'); // Reuse attack animation for bow
+    if (this.state === 'attack' || this.state === 'dodge' || this.state === 'bow') return;
+    this.playAnimation('bow');
   }
 
   dodge() {
@@ -609,6 +609,9 @@ export class FoxCharacter {
         break;
       case 'attack':
         this.animateAttack(t);
+        break;
+      case 'bow':
+        this.animateBow(t);
         break;
       case 'dodge':
         this.animateDodge(t);
@@ -810,6 +813,39 @@ export class FoxCharacter {
       const overshoot = Math.sin((phase - 0.55) * 12) * 0.08;
       this.bones.chest.rotation.z = overshoot;
       this.bones.spine.rotation.z = -overshoot * 0.5;
+    }
+  }
+
+  animateBow(t) {
+    // Bow draw — slow, deliberate anticipation, aim, release
+    const phase = t * 4; // Slower than attack
+    if (phase < 0.4) {
+      // Anticipation — raise bow, draw string back
+      this.bones.chest.rotation.z = -0.15;
+      this.bones.spine.rotation.z = 0.1;
+      this.bones.head.rotation.z = 0.05;
+      // Right arm draws back (bow arm extends, left arm draws string)
+      this.bones.rightLeg.rotation.x = 0.2;
+      this.bones.leftLeg.rotation.x = -0.1;
+      this.targetSquashStretch = 1.05;
+    } else if (phase < 0.8) {
+      // Aim — hold steady, slight tension
+      this.bones.chest.rotation.z = -0.15 + Math.sin(t * 6) * 0.02;
+      this.bones.spine.rotation.z = 0.1 + Math.sin(t * 6) * 0.01;
+      this.bones.head.rotation.z = 0.05 + Math.sin(t * 8) * 0.01;
+      this.targetSquashStretch = 1.1;
+    } else if (phase < 1.0) {
+      // Release — snap forward
+      this.bones.chest.rotation.z = 0.2;
+      this.bones.spine.rotation.z = -0.1;
+      this.targetSquashStretch = 1.2;
+    } else {
+      // Follow-through — return to idle
+      const recover = Math.sin((phase - 1.0) * 10) * 0.05;
+      this.bones.chest.rotation.z = recover;
+      this.bones.spine.rotation.z = -recover * 0.3;
+      this.bones.head.rotation.z = 0;
+      this.targetSquashStretch = 1.0;
     }
   }
 
