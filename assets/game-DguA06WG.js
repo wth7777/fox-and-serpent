@@ -21881,6 +21881,201 @@ PropertyBinding.prototype.SetterByBindingTypeAndVersioning = [
 		PropertyBinding.prototype._setValue_fromArray_setMatrixWorldNeedsUpdate
 	]
 ];
+var _matrix = /*@__PURE__*/ new Matrix4();
+/**
+* This class is designed to assist with raycasting. Raycasting is used for
+* mouse picking (working out what objects in the 3d space the mouse is over)
+* amongst other things.
+*/
+var Raycaster = class {
+	/**
+	* Constructs a new raycaster.
+	*
+	* @param {Vector3} origin - The origin vector where the ray casts from.
+	* @param {Vector3} direction - The (normalized) direction vector that gives direction to the ray.
+	* @param {number} [near=0] - All results returned are further away than near. Near can't be negative.
+	* @param {number} [far=Infinity] - All results returned are closer than far. Far can't be lower than near.
+	*/
+	constructor(origin, direction, near = 0, far = Infinity) {
+		/**
+		* The ray used for raycasting.
+		*
+		* @type {Ray}
+		*/
+		this.ray = new Ray(origin, direction);
+		/**
+		* All results returned are further away than near. Near can't be negative.
+		*
+		* @type {number}
+		* @default 0
+		*/
+		this.near = near;
+		/**
+		* All results returned are closer than far. Far can't be lower than near.
+		*
+		* @type {number}
+		* @default Infinity
+		*/
+		this.far = far;
+		/**
+		* The camera to use when raycasting against view-dependent objects such as
+		* billboarded objects like sprites. This field can be set manually or
+		* is set when calling `setFromCamera()`.
+		*
+		* @type {?Camera}
+		* @default null
+		*/
+		this.camera = null;
+		/**
+		* Allows to selectively ignore 3D objects when performing intersection tests.
+		* The following code example ensures that only 3D objects on layer `1` will be
+		* honored by raycaster.
+		* ```js
+		* raycaster.layers.set( 1 );
+		* object.layers.enable( 1 );
+		* ```
+		*
+		* @type {Layers}
+		*/
+		this.layers = new Layers();
+		/**
+		* A parameter object that configures the raycasting. It has the structure:
+		*
+		* ```
+		* {
+		* 	Mesh: {},
+		* 	Line: { threshold: 1 },
+		* 	LOD: {},
+		* 	Points: { threshold: 1 },
+		* 	Sprite: {}
+		* }
+		* ```
+		* Where `threshold` is the precision of the raycaster when intersecting objects, in world units.
+		*
+		* @type {Object}
+		*/
+		this.params = {
+			Mesh: {},
+			Line: { threshold: 1 },
+			LOD: {},
+			Points: { threshold: 1 },
+			Sprite: {}
+		};
+	}
+	/**
+	* Updates the ray with a new origin and direction by copying the values from the arguments.
+	*
+	* @param {Vector3} origin - The origin vector where the ray casts from.
+	* @param {Vector3} direction - The (normalized) direction vector that gives direction to the ray.
+	*/
+	set(origin, direction) {
+		this.ray.set(origin, direction);
+	}
+	/**
+	* Uses the given coordinates and camera to compute a new origin and direction for the internal ray.
+	*
+	* @param {Vector2} coords - 2D coordinates of the mouse, in normalized device coordinates (NDC).
+	* X and Y components should be between `-1` and `1`.
+	* @param {Camera} camera - The camera from which the ray should originate.
+	*/
+	setFromCamera(coords, camera) {
+		if (camera.isPerspectiveCamera) {
+			this.ray.origin.setFromMatrixPosition(camera.matrixWorld);
+			this.ray.direction.set(coords.x, coords.y, .5).unproject(camera).sub(this.ray.origin).normalize();
+			this.camera = camera;
+		} else if (camera.isOrthographicCamera) {
+			this.ray.origin.set(coords.x, coords.y, camera.projectionMatrix.elements[14]).unproject(camera);
+			this.ray.direction.set(0, 0, -1).transformDirection(camera.matrixWorld);
+			this.camera = camera;
+		} else error("Raycaster: Unsupported camera type: " + camera.type);
+	}
+	/**
+	* Uses the given WebXR controller to compute a new origin and direction for the internal ray.
+	*
+	* @param {WebXRController} controller - The controller to copy the position and direction from.
+	* @return {Raycaster} A reference to this raycaster.
+	*/
+	setFromXRController(controller) {
+		_matrix.identity().extractRotation(controller.matrixWorld);
+		this.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+		this.ray.direction.set(0, 0, -1).applyMatrix4(_matrix);
+		return this;
+	}
+	/**
+	* The intersection point of a raycaster intersection test.
+	* @typedef {Object} Raycaster~Intersection
+	* @property {number} distance - The distance from the ray's origin to the intersection point.
+	* @property {number} distanceToRay -  Some 3D objects e.g. {@link Points} provide the distance of the
+	* intersection to the nearest point on the ray. For other objects it will be `undefined`.
+	* @property {Vector3} point - The intersection point, in world coordinates.
+	* @property {Object} face - The face that has been intersected.
+	* @property {number} faceIndex - The face index.
+	* @property {Object3D} object - The 3D object that has been intersected.
+	* @property {Vector2} uv - U,V coordinates at point of intersection.
+	* @property {Vector2} uv1 - Second set of U,V coordinates at point of intersection.
+	* @property {Vector3} normal - Interpolated normal vector at point of intersection.
+	* @property {number} instanceId - The index number of the instance where the ray
+	* intersects the {@link InstancedMesh}.
+	* @property {number} batchId - The index number of the instance where the ray
+	* intersects the {@link BatchedMesh}.
+	*/
+	/**
+	* Checks all intersection between the ray and the object with or without the
+	* descendants. Intersections are returned sorted by distance, closest first.
+	*
+	* `Raycaster` delegates to the `raycast()` method of the passed 3D object, when
+	* evaluating whether the ray intersects the object or not. This allows meshes to respond
+	* differently to ray casting than lines or points.
+	*
+	* Note that for meshes, faces must be pointed towards the origin of the ray in order
+	* to be detected; intersections of the ray passing through the back of a face will not
+	* be detected. To raycast against both faces of an object, you'll want to set  {@link Material#side}
+	* to `THREE.DoubleSide`.
+	*
+	* Note that a ray hitting a triangle mesh exactly along an edge shared by two faces may be
+	* reported by both faces, resulting in two coincident intersections (identical point and
+	* distance) in the returned array.
+	*
+	* @param {Object3D} object - The 3D object to check for intersection with the ray.
+	* @param {boolean} [recursive=true] - If set to `true`, it also checks all descendants.
+	* Otherwise it only checks intersection with the object.
+	* @param {Array<Raycaster~Intersection>} [intersects=[]] The target array that holds the result of the method.
+	* @return {Array<Raycaster~Intersection>} An array holding the intersection points.
+	*/
+	intersectObject(object, recursive = true, intersects = []) {
+		intersect(object, this, intersects, recursive);
+		intersects.sort(ascSort);
+		return intersects;
+	}
+	/**
+	* Checks all intersection between the ray and the objects with or without
+	* the descendants. Intersections are returned sorted by distance, closest first.
+	*
+	* @param {Array<Object3D>} objects - The 3D objects to check for intersection with the ray.
+	* @param {boolean} [recursive=true] - If set to `true`, it also checks all descendants.
+	* Otherwise it only checks intersection with the object.
+	* @param {Array<Raycaster~Intersection>} [intersects=[]] The target array that holds the result of the method.
+	* @return {Array<Raycaster~Intersection>} An array holding the intersection points.
+	*/
+	intersectObjects(objects, recursive = true, intersects = []) {
+		for (let i = 0, l = objects.length; i < l; i++) intersect(objects[i], this, intersects, recursive);
+		intersects.sort(ascSort);
+		return intersects;
+	}
+};
+function ascSort(a, b) {
+	return a.distance - b.distance;
+}
+function intersect(object, raycaster, intersects, recursive) {
+	let propagate = true;
+	if (object.layers.test(raycaster.layers)) {
+		if (object.raycast(raycaster, intersects) === false) propagate = false;
+	}
+	if (propagate === true && recursive === true) {
+		const children = object.children;
+		for (let i = 0, l = children.length; i < l; i++) intersect(children[i], raycaster, intersects, true);
+	}
+}
 /**
 * Class for keeping track of time.
 *
@@ -33167,6 +33362,117 @@ var WebGLRenderer = class {
 		gl.unpackColorSpace = ColorManagement._getUnpackColorSpace();
 	}
 };
+// js/cel-shading.js
+function createToonGradient(size = 16) {
+	const canvas = document.createElement("canvas");
+	canvas.width = size;
+	canvas.height = 1;
+	const ctx = canvas.getContext("2d");
+	const imageData = ctx.createImageData(size, 1);
+	const data = imageData.data;
+	const colors = [
+		{
+			r: 60,
+			g: 40,
+			b: 30
+		},
+		{
+			r: 120,
+			g: 80,
+			b: 60
+		},
+		{
+			r: 200,
+			g: 140,
+			b: 100
+		},
+		{
+			r: 255,
+			g: 210,
+			b: 160
+		}
+	];
+	const steps = colors.length;
+	for (let i = 0; i < size; i++) {
+		const step = Math.floor(i / size * steps);
+		const c = colors[Math.min(step, steps - 1)];
+		const offset = i * 4;
+		data[offset] = c.r;
+		data[offset + 1] = c.g;
+		data[offset + 2] = c.b;
+		data[offset + 3] = 255;
+	}
+	ctx.putImageData(imageData, 0, 0);
+	const texture = new CanvasTexture(canvas);
+	texture.magFilter = NearestFilter;
+	texture.minFilter = NearestFilter;
+	texture.wrapS = ClampToEdgeWrapping;
+	texture.wrapT = ClampToEdgeWrapping;
+	return texture;
+}
+var outlineMaterial = new MeshBasicMaterial({
+	color: 2759194,
+	side: 1,
+	depthWrite: false,
+	fog: false
+});
+function createCelMaterial(color, options = {}) {
+	const { gradientSize = 16, outline = true, outlineThickness = 1.02, shininess = 0 } = options;
+	const gradientMap = createToonGradient(gradientSize);
+	return {
+		material: new MeshToonMaterial({
+			color,
+			gradientMap,
+			fog: true
+		}),
+		gradientMap,
+		outline,
+		outlineMaterial,
+		outlineThickness
+	};
+}
+function createOutlinedMesh(geometry, materialOptions, scene, castShadow = true) {
+	const { material, outline, outlineMaterial, outlineThickness } = createCelMaterial(materialOptions.color, materialOptions);
+	const mesh = new Mesh(geometry, material);
+	mesh.castShadow = castShadow;
+	mesh.receiveShadow = true;
+	if (outline) {
+		const outlineMesh = new Mesh(geometry, outlineMaterial);
+		outlineMesh.scale.setScalar(outlineThickness);
+		outlineMesh.castShadow = false;
+		outlineMesh.receiveShadow = false;
+		outlineMesh.frustumCulled = false;
+		mesh.add(outlineMesh);
+		mesh.userData.outlineMesh = outlineMesh;
+	}
+	mesh.userData.celMaterial = material;
+	scene.add(mesh);
+	return mesh;
+}
+var CARTOON_COLORS = {
+	foxOrange: 16739125,
+	foxCream: 16773077,
+	foxDarkOrange: 15227439,
+	foxNose: 2759194,
+	foxEye: 16777215,
+	foxPupil: 0,
+	grassGreen: 7048739,
+	grassLight: 9417578,
+	grassDark: 4877114,
+	dirtBrown: 9268835,
+	dirtLight: 11110773,
+	treeTrunk: 6111287,
+	treeTrunkLight: 7951688,
+	foliageGreen: 2972199,
+	foliageLight: 4881497,
+	skyBlue: 8900331,
+	stoneGray: 8359053,
+	stoneLight: 9807270,
+	woodBrown: 9268835,
+	woodDark: 7162945,
+	gold: 15844367,
+	warmRed: 15158332
+};
 // node_modules/three/examples/jsm/controls/OrbitControls.js
 /**
 * Fires when the camera has been transformed by the controls.
@@ -34294,117 +34600,6 @@ function interceptControlUp(event) {
 		});
 	}
 }
-// js/cel-shading.js
-function createToonGradient(size = 16) {
-	const canvas = document.createElement("canvas");
-	canvas.width = size;
-	canvas.height = 1;
-	const ctx = canvas.getContext("2d");
-	const imageData = ctx.createImageData(size, 1);
-	const data = imageData.data;
-	const colors = [
-		{
-			r: 60,
-			g: 40,
-			b: 30
-		},
-		{
-			r: 120,
-			g: 80,
-			b: 60
-		},
-		{
-			r: 200,
-			g: 140,
-			b: 100
-		},
-		{
-			r: 255,
-			g: 210,
-			b: 160
-		}
-	];
-	const steps = colors.length;
-	for (let i = 0; i < size; i++) {
-		const step = Math.floor(i / size * steps);
-		const c = colors[Math.min(step, steps - 1)];
-		const offset = i * 4;
-		data[offset] = c.r;
-		data[offset + 1] = c.g;
-		data[offset + 2] = c.b;
-		data[offset + 3] = 255;
-	}
-	ctx.putImageData(imageData, 0, 0);
-	const texture = new CanvasTexture(canvas);
-	texture.magFilter = NearestFilter;
-	texture.minFilter = NearestFilter;
-	texture.wrapS = ClampToEdgeWrapping;
-	texture.wrapT = ClampToEdgeWrapping;
-	return texture;
-}
-var outlineMaterial = new MeshBasicMaterial({
-	color: 2759194,
-	side: 1,
-	depthWrite: false,
-	fog: false
-});
-function createCelMaterial(color, options = {}) {
-	const { gradientSize = 16, outline = true, outlineThickness = 1.02, shininess = 0 } = options;
-	const gradientMap = createToonGradient(gradientSize);
-	return {
-		material: new MeshToonMaterial({
-			color,
-			gradientMap,
-			fog: true
-		}),
-		gradientMap,
-		outline,
-		outlineMaterial,
-		outlineThickness
-	};
-}
-function createOutlinedMesh(geometry, materialOptions, scene, castShadow = true) {
-	const { material, outline, outlineMaterial, outlineThickness } = createCelMaterial(materialOptions.color, materialOptions);
-	const mesh = new Mesh(geometry, material);
-	mesh.castShadow = castShadow;
-	mesh.receiveShadow = true;
-	if (outline) {
-		const outlineMesh = new Mesh(geometry, outlineMaterial);
-		outlineMesh.scale.setScalar(outlineThickness);
-		outlineMesh.castShadow = false;
-		outlineMesh.receiveShadow = false;
-		outlineMesh.frustumCulled = false;
-		mesh.add(outlineMesh);
-		mesh.userData.outlineMesh = outlineMesh;
-	}
-	mesh.userData.celMaterial = material;
-	scene.add(mesh);
-	return mesh;
-}
-var CARTOON_COLORS = {
-	foxOrange: 16739125,
-	foxCream: 16773077,
-	foxDarkOrange: 15227439,
-	foxNose: 2759194,
-	foxEye: 16777215,
-	foxPupil: 0,
-	grassGreen: 7048739,
-	grassLight: 9417578,
-	grassDark: 4877114,
-	dirtBrown: 9268835,
-	dirtLight: 11110773,
-	treeTrunk: 6111287,
-	treeTrunkLight: 7951688,
-	foliageGreen: 2972199,
-	foliageLight: 4881497,
-	skyBlue: 8900331,
-	stoneGray: 8359053,
-	stoneLight: 9807270,
-	woodBrown: 9268835,
-	woodDark: 7162945,
-	gold: 15844367,
-	warmRed: 15158332
-};
 // js/engine.js
 var Engine = class {
 	constructor(containerId) {
@@ -34519,18 +34714,140 @@ var Engine = class {
 		this.renderer.dispose();
 	}
 };
+// js/camera-controller.js
+var CameraController = class {
+	constructor(camera, target, scene, domElement) {
+		this.camera = camera;
+		this.target = target;
+		this.scene = scene;
+		this.domElement = domElement;
+		this.yaw = 0;
+		this.pitch = 0;
+		this.distance = 6;
+		this.minDistance = 3;
+		this.maxDistance = 10;
+		this.distanceSpeed = 2;
+		this.idealYaw = 0;
+		this.idealPitch = .3;
+		this.idealDistance = 6;
+		this.returnSpeed = 2;
+		this.minPitch = -.8;
+		this.maxPitch = 1;
+		this.rotationSensitivity = 1;
+		this.zoomSensitivity = .5;
+		this.enableCollision = true;
+		this.collisionRadius = .3;
+		this.raycaster = new Raycaster();
+		this.userRotating = false;
+		this.userRotatingTimer = 0;
+		this.collisionRaycaster = new Raycaster();
+		this.collisionTargets = [];
+		this.updateCameraPosition();
+	}
+	setCollisionObjects(objects) {
+		this.collisionTargets = objects;
+	}
+	rotate(deltaYaw, deltaPitch) {
+		this.userRotating = true;
+		this.userRotatingTimer = 0;
+		this.yaw += deltaYaw * this.rotationSensitivity;
+		this.pitch += deltaPitch * this.rotationSensitivity;
+		this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
+		while (this.yaw < -Math.PI) this.yaw += Math.PI * 2;
+		while (this.yaw > Math.PI) this.yaw -= Math.PI * 2;
+		this.idealYaw = this.yaw;
+		this.idealPitch = this.pitch;
+	}
+	zoom(delta) {
+		this.userRotating = true;
+		this.userRotatingTimer = 0;
+		this.distance -= delta * this.distanceSpeed;
+		this.distance = Math.max(this.minDistance, Math.min(this.maxDistance, this.distance));
+		this.idealDistance = this.distance;
+	}
+	reset() {
+		this.yaw = 0;
+		this.pitch = .3;
+		this.distance = 6;
+		this.idealYaw = 0;
+		this.idealPitch = .3;
+		this.idealDistance = 6;
+		this.userRotating = false;
+		this.userRotatingTimer = 0;
+	}
+	getHorizontalAxes() {
+		return {
+			camForwardX: Math.sin(this.yaw),
+			camForwardZ: Math.cos(this.yaw),
+			camRightX: Math.cos(this.yaw),
+			camRightZ: -Math.sin(this.yaw)
+		};
+	}
+	update(deltaTime) {
+		if (!this.target || !this.target.mesh) return;
+		if (this.userRotating) {
+			this.userRotatingTimer += deltaTime;
+			if (this.userRotatingTimer > 1) {
+				const returnFactor = Math.min(1, (this.userRotatingTimer - 1) * this.returnSpeed);
+				this.yaw = this.lerpAngle(this.yaw, this.idealYaw, returnFactor);
+				this.pitch = this.lerp(this.pitch, this.idealPitch, returnFactor);
+				this.distance = this.lerp(this.distance, this.idealDistance, returnFactor);
+			}
+		}
+		const targetPos = this.target.getPosition();
+		const targetHeight = targetPos.y + 1.5;
+		const idealPos = this.calculateCameraPosition(targetPos, targetHeight);
+		let finalPos = idealPos;
+		if (this.enableCollision && this.collisionTargets.length > 0) finalPos = this.checkCollision(targetPos, targetHeight, idealPos);
+		this.camera.position.lerp(finalPos, deltaTime * 8);
+		const lookPos = new Vector3(targetPos.x, targetHeight, targetPos.z);
+		this.camera.lookAt(lookPos);
+		this.camera.updateMatrixWorld();
+	}
+	lerp(a, b, t) {
+		return a + (b - a) * t;
+	}
+	lerpAngle(a, b, t) {
+		let diff = b - a;
+		while (diff < -Math.PI) diff += Math.PI * 2;
+		while (diff > Math.PI) diff -= Math.PI * 2;
+		return a + diff * t;
+	}
+	calculateCameraPosition(targetPos, targetHeight) {
+		const xOffset = Math.sin(this.yaw) * Math.cos(this.pitch);
+		const zOffset = Math.cos(this.yaw) * Math.cos(this.pitch);
+		const yOffset = Math.sin(this.pitch);
+		const offset = new Vector3(xOffset * this.distance, yOffset * this.distance, zOffset * this.distance);
+		return new Vector3(targetPos.x + offset.x, targetHeight + offset.y, targetPos.z + offset.z);
+	}
+	checkCollision(targetPos, targetHeight, idealPos) {
+		const direction = new Vector3().subVectors(idealPos, targetPos);
+		const distance = direction.length();
+		direction.normalize();
+		this.collisionRaycaster.set(targetPos, direction);
+		this.collisionRaycaster.far = distance;
+		const intersects = this.collisionRaycaster.intersectObjects(this.collisionTargets, true);
+		if (intersects.length > 0) {
+			const hitDistance = intersects[0].distance - this.collisionRadius;
+			return new Vector3(targetPos.x + direction.x * hitDistance, targetPos.y + direction.y * hitDistance + 1.5, targetPos.z + direction.z * hitDistance);
+		}
+		return idealPos;
+	}
+};
 // js/input.js
 var InputHandler = class {
-	constructor(domElement, player) {
+	constructor(domElement, player, cameraController) {
 		this.domElement = domElement;
 		this.player = player;
+		this.cameraController = cameraController;
 		this.keys = {};
 		this.mouse = {
 			x: 0,
 			y: 0,
 			deltaX: 0,
 			deltaY: 0,
-			isDown: false
+			isDown: false,
+			rightDown: false
 		};
 		this.touch = {
 			active: false,
@@ -34548,11 +34865,14 @@ var InputHandler = class {
 			maxDistance: 60
 		};
 		this.pointerLockActive = false;
+		this.rightDragStart = null;
 		this.onKeyDown = this.onKeyDown.bind(this);
 		this.onKeyUp = this.onKeyUp.bind(this);
 		this.onMouseMove = this.onMouseMove.bind(this);
 		this.onMouseDown = this.onMouseDown.bind(this);
 		this.onMouseUp = this.onMouseUp.bind(this);
+		this.onWheel = this.onWheel.bind(this);
+		this.onContextMenu = this.onContextMenu.bind(this);
 		this.onTouchStart = this.onTouchStart.bind(this);
 		this.onTouchMove = this.onTouchMove.bind(this);
 		this.onTouchEnd = this.onTouchEnd.bind(this);
@@ -34560,7 +34880,7 @@ var InputHandler = class {
 		this.onJoystickMove = this.onJoystickMove.bind(this);
 		this.onJoystickEnd = this.onJoystickEnd.bind(this);
 		this.onPointerLockChange = this.onPointerLockChange.bind(this);
-		this.onContextMenu = this.onContextMenu.bind(this);
+		this.onResize = this.onResize.bind(this);
 		this.init();
 	}
 	init() {
@@ -34569,6 +34889,7 @@ var InputHandler = class {
 		this.domElement.addEventListener("mousemove", this.onMouseMove);
 		this.domElement.addEventListener("mousedown", this.onMouseDown);
 		this.domElement.addEventListener("mouseup", this.onMouseUp);
+		this.domElement.addEventListener("wheel", this.onWheel, { passive: false });
 		this.domElement.addEventListener("contextmenu", this.onContextMenu);
 		this.domElement.addEventListener("click", () => {
 			if (!this.pointerLockActive && !this.isMobile()) this.domElement.requestPointerLock();
@@ -34586,6 +34907,7 @@ var InputHandler = class {
 			joystickBase.addEventListener("touchcancel", this.onJoystickEnd);
 		}
 		this.setupMobileButtons();
+		window.addEventListener("resize", this.onResize);
 	}
 	setupMobileButtons() {
 		[
@@ -34656,11 +34978,26 @@ var InputHandler = class {
 		if (e.button === 0) {
 			if (this.player) this.player.attack();
 		} else if (e.button === 2) {
-			if (this.player) this.player.shootBow();
+			this.mouse.rightDown = true;
+			this.rightDragStart = {
+				x: e.clientX,
+				y: e.clientY
+			};
 		}
 	}
 	onMouseUp(e) {
 		this.mouse.isDown = false;
+		if (e.button === 2) {
+			this.mouse.rightDown = false;
+			this.rightDragStart = null;
+		}
+	}
+	onWheel(e) {
+		e.preventDefault();
+		if (this.cameraController) {
+			const zoomDelta = -e.deltaY * .001;
+			this.cameraController.zoom(zoomDelta);
+		}
 	}
 	onContextMenu(e) {
 		e.preventDefault();
@@ -34668,6 +35005,8 @@ var InputHandler = class {
 	onTouchStart(e) {
 		e.preventDefault();
 		const touch = e.changedTouches[0];
+		const target = e.target;
+		if (target && (target.tagName === "BUTTON" || target.classList.contains("action-btn") || target.classList.contains("joystick-stick") || target.classList.contains("joystick-base"))) return;
 		this.touch.active = true;
 		this.touch.startX = touch.clientX;
 		this.touch.startY = touch.clientY;
@@ -34741,6 +35080,23 @@ var InputHandler = class {
 			z: -(dy / this.joystick.maxDistance)
 		};
 	}
+	getRightDragCameraDelta() {
+		if (!this.mouse.rightDown || !this.rightDragStart) return {
+			x: 0,
+			y: 0
+		};
+		const dx = this.mouse.x - this.rightDragStart.x;
+		const dy = this.mouse.y - this.rightDragStart.y;
+		this.rightDragStart = {
+			x: this.mouse.x,
+			y: this.mouse.y
+		};
+		return {
+			x: dx,
+			y: dy
+		};
+	}
+	onResize() {}
 	update(deltaTime) {
 		let moveX = 0;
 		let moveZ = 0;
@@ -34757,21 +35113,40 @@ var InputHandler = class {
 			moveZ /= len;
 		}
 		const sprint = this.keys["ShiftLeft"] || this.keys["ShiftRight"];
-		if (this.pointerLockActive && this.player) {
+		if (this.pointerLockActive && this.player && this.cameraController) {
 			const sens = .002;
-			this.player.rotateY(-this.mouse.deltaX * sens);
-			this.player.rotatePitch(this.mouse.deltaY * sens);
+			this.cameraController.rotate(-this.mouse.deltaX * sens, -this.mouse.deltaY * sens);
 		}
-		if (this.touch.active && this.player && !this.joystick.active) {
+		if (this.mouse.rightDown && this.cameraController) {
+			const drag = this.getRightDragCameraDelta();
+			const sens = .003;
+			this.cameraController.rotate(drag.x * sens, drag.y * sens);
+		}
+		if (this.touch.active && this.player && this.cameraController && !this.joystick.active) {
 			const dx = this.touch.currentX - this.touch.startX;
 			const dy = this.touch.currentY - this.touch.startY;
-			const sens = .005;
-			this.player.rotateY(-dx * sens);
-			this.player.rotatePitch(dy * sens);
-			this.touch.startX = this.touch.currentX;
-			this.touch.startY = this.touch.currentY;
+			if (Math.sqrt(dx * dx + dy * dy) > 15) {
+				const sens = .004;
+				this.cameraController.rotate(-dx * sens, -dy * sens);
+				this.touch.startX = this.touch.currentX;
+				this.touch.startY = this.touch.currentY;
+			}
 		}
-		if (this.player) this.player.setMovement(moveX, moveZ, sprint);
+		if (this.player) {
+			const { camForwardX, camForwardZ, camRightX, camRightZ } = this.getCameraRelativeAxes();
+			const worldX = moveX * camRightX + moveZ * camForwardX;
+			const worldZ = moveX * camRightZ + moveZ * camForwardZ;
+			this.player.setMovement(worldX, worldZ, sprint);
+		}
+	}
+	getCameraRelativeAxes() {
+		if (this.cameraController) return this.cameraController.getHorizontalAxes();
+		return {
+			camForwardX: 0,
+			camForwardZ: -1,
+			camRightX: 1,
+			camRightZ: 0
+		};
 	}
 	dispose() {
 		window.removeEventListener("keydown", this.onKeyDown);
@@ -34779,12 +35154,14 @@ var InputHandler = class {
 		this.domElement.removeEventListener("mousemove", this.onMouseMove);
 		this.domElement.removeEventListener("mousedown", this.onMouseDown);
 		this.domElement.removeEventListener("mouseup", this.onMouseUp);
+		this.domElement.removeEventListener("wheel", this.onWheel);
 		this.domElement.removeEventListener("contextmenu", this.onContextMenu);
 		this.domElement.removeEventListener("click", this.onClick);
 		document.removeEventListener("pointerlockchange", this.onPointerLockChange);
 		this.domElement.removeEventListener("touchstart", this.onTouchStart);
 		this.domElement.removeEventListener("touchmove", this.onTouchMove);
 		this.domElement.removeEventListener("touchend", this.onTouchEnd);
+		window.removeEventListener("resize", this.onResize);
 	}
 };
 // js/fox-character.js
@@ -35973,6 +36350,13 @@ var Environment = class {
 		this.trees = [];
 		this.grassPatches = [];
 	}
+	getCollisionObjects() {
+		const objects = [];
+		this.scene.traverse((child) => {
+			if (child.isMesh && child.name !== "skybox") objects.push(child);
+		});
+		return objects;
+	}
 };
 // js/audio.js
 var AudioManager = class {
@@ -36295,6 +36679,7 @@ var state = {
 	lastTime: 0
 };
 var engine;
+var cameraController;
 var input;
 var fox;
 var environment;
@@ -36314,16 +36699,21 @@ async function init() {
 		updateLoading(15, "Setting up lighting...");
 		engine.setupLighting();
 		console.log("[INIT] Lighting initialized");
+		updateLoading(20, "Setting up camera...");
+		cameraController = new CameraController(engine.camera, null, engine.scene, engine.renderer.domElement);
+		console.log("[INIT] Camera controller initialized");
 		updateLoading(25, "Creating environment...");
 		environment = new Environment(engine.scene, engine);
 		await environment.init();
 		console.log("[INIT] Environment initialized");
+		cameraController.setCollisionObjects(environment.getCollisionObjects());
 		updateLoading(40, "Creating cartoon fox...");
 		fox = new FoxCharacter(engine.scene);
 		await fox.init();
+		cameraController.setTarget(fox);
 		console.log("[INIT] Fox character initialized");
 		updateLoading(55, "Setting up input...");
-		input = new InputHandler(engine.renderer.domElement, fox);
+		input = new InputHandler(engine.renderer.domElement, fox, cameraController);
 		console.log("[INIT] Input initialized");
 		updateLoading(65, "Initializing audio...");
 		audio = new AudioManager();
@@ -36368,26 +36758,21 @@ function gameLoop(currentTime) {
 		fox.update(state.deltaTime);
 		environment.update(state.deltaTime);
 		audio.update(state.deltaTime);
-		updateCamera(deltaTime);
+		if (closeUpMode) updateCloseUpCamera(state.deltaTime);
+		else if (cameraController) cameraController.update(state.deltaTime);
 	}
 	engine.render();
 	requestAnimationFrame(gameLoop);
 }
-function updateCamera(dt) {
+function updateCloseUpCamera(dt) {
 	if (!fox || !engine.camera) return;
-	if (closeUpMode) {
-		closeUpTimer += dt;
-		const foxPos = fox.getPosition();
-		engine.camera.position.lerp(new Vector3(foxPos.x, foxPos.y + .8, foxPos.z + 1.2), dt * 3);
-		engine.camera.lookAt(foxPos.x, foxPos.y + .5, foxPos.z);
-		if (closeUpTimer > 4) closeUpMode = false;
-	} else {
-		const camOffset = new Vector3(0, 3, 6);
-		camOffset.applyQuaternion(new Quaternion().setFromEuler(new Euler(0, fox.mesh.rotation.y, 0)));
-		const idealPos = fox.mesh.position.clone().add(camOffset);
-		const idealLook = fox.mesh.position.clone().add(new Vector3(0, 1.5, 0));
-		engine.camera.position.lerp(idealPos, dt * 5);
-		engine.camera.lookAt(idealLook);
+	closeUpTimer += dt;
+	const foxPos = fox.getPosition();
+	engine.camera.position.lerp(new Vector3(foxPos.x, foxPos.y + .8, foxPos.z + 1.2), dt * 3);
+	engine.camera.lookAt(foxPos.x, foxPos.y + .5, foxPos.z);
+	if (closeUpTimer > 4) {
+		closeUpMode = false;
+		cameraController.reset();
 	}
 }
 window.showMainMenu = function() {
@@ -36452,6 +36837,12 @@ window.toggleGraphics = function() {
 	environment.setGraphicsLevel(state.graphicsLevel);
 	showStatus("Graphics: " + state.graphicsLevel);
 };
+window.resetCamera = function() {
+	if (cameraController) {
+		cameraController.reset();
+		showStatus("Camera reset");
+	}
+};
 window.toggleSound = function() {
 	state.soundEnabled = !state.soundEnabled;
 	document.getElementById("menu-sound").textContent = state.soundEnabled ? "On" : "Off";
@@ -36512,6 +36903,12 @@ document.addEventListener("keydown", (e) => {
 	if (e.key === "Escape" && state.playing && !state.gameOver) {
 		state.paused = !state.paused;
 		document.getElementById("pause-menu").classList.toggle("hidden", !state.paused);
+	}
+	if (e.key === "r" || e.key === "R") {
+		if (cameraController) {
+			cameraController.reset();
+			showStatus("Camera reset");
+		}
 	}
 });
 window.addEventListener("error", (e) => {

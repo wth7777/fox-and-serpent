@@ -731,6 +731,17 @@ export class Environment {
     this.trees = [];
     this.grassPatches = [];
   }
+
+  // Return all meshes that can block camera movement
+  getCollisionObjects() {
+    const objects = [];
+    this.scene.traverse((child) => {
+      if (child.isMesh && child.name !== 'skybox') {
+        objects.push(child);
+      }
+    });
+    return objects;
+  }
 }
 
 export default Environment;

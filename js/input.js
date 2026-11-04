@@ -1,21 +1,27 @@
 /* FOX & SERPENT — Input Module
-   Keyboard, mouse, touch, and virtual joystick handling */
+   Keyboard, mouse, touch, virtual joystick, and camera controls */
+
+import * as THREE from 'three';
 
 export class InputHandler {
-  constructor(domElement, player) {
+  constructor(domElement, player, cameraController) {
     this.domElement = domElement;
     this.player = player;
+    this.cameraController = cameraController;
     this.keys = {};
-    this.mouse = { x: 0, y: 0, deltaX: 0, deltaY: 0, isDown: false };
+    this.mouse = { x: 0, y: 0, deltaX: 0, deltaY: 0, isDown: false, rightDown: false };
     this.touch = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0 };
     this.joystick = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, maxDistance: 60 };
     this.pointerLockActive = false;
+    this.rightDragStart = null;
 
     this.onKeyDown = this.onKeyDown.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
     this.onMouseDown = this.onMouseDown.bind(this);
     this.onMouseUp = this.onMouseUp.bind(this);
+    this.onWheel = this.onWheel.bind(this);
+    this.onContextMenu = this.onContextMenu.bind(this);
     this.onTouchStart = this.onTouchStart.bind(this);
     this.onTouchMove = this.onTouchMove.bind(this);
     this.onTouchEnd = this.onTouchEnd.bind(this);
@@ -23,7 +29,7 @@ export class InputHandler {
     this.onJoystickMove = this.onJoystickMove.bind(this);
     this.onJoystickEnd = this.onJoystickEnd.bind(this);
     this.onPointerLockChange = this.onPointerLockChange.bind(this);
-    this.onContextMenu = this.onContextMenu.bind(this);
+    this.onResize = this.onResize.bind(this);
 
     this.init();
   }
@@ -37,6 +43,7 @@ export class InputHandler {
     this.domElement.addEventListener('mousemove', this.onMouseMove);
     this.domElement.addEventListener('mousedown', this.onMouseDown);
     this.domElement.addEventListener('mouseup', this.onMouseUp);
+    this.domElement.addEventListener('wheel', this.onWheel, { passive: false });
     this.domElement.addEventListener('contextmenu', this.onContextMenu);
 
     // Click to request pointer lock (desktop)
@@ -65,6 +72,9 @@ export class InputHandler {
 
     // Mobile action buttons
     this.setupMobileButtons();
+
+    // Window resize
+    window.addEventListener('resize', this.onResize);
   }
 
   setupMobileButtons() {
@@ -125,14 +135,30 @@ export class InputHandler {
   onMouseDown(e) {
     this.mouse.isDown = true;
     if (e.button === 0) {
+      // Left click — attack
       if (this.player) this.player.attack();
     } else if (e.button === 2) {
-      if (this.player) this.player.shootBow();
+      // Right click — start camera drag
+      this.mouse.rightDown = true;
+      this.rightDragStart = { x: e.clientX, y: e.clientY };
     }
   }
 
   onMouseUp(e) {
     this.mouse.isDown = false;
+    if (e.button === 2) {
+      this.mouse.rightDown = false;
+      this.rightDragStart = null;
+    }
+  }
+
+  onWheel(e) {
+    e.preventDefault();
+    if (this.cameraController) {
+      // Mouse wheel zoom — negative deltaY = scroll up = zoom in
+      const zoomDelta = -e.deltaY * 0.001;
+      this.cameraController.zoom(zoomDelta);
+    }
   }
 
   onContextMenu(e) {
@@ -142,6 +168,13 @@ export class InputHandler {
   onTouchStart(e) {
     e.preventDefault();
     const touch = e.changedTouches[0];
+    
+    // Don't start camera drag if touching a UI button
+    const target = e.target;
+    if (target && (target.tagName === 'BUTTON' || target.classList.contains('action-btn') || target.classList.contains('joystick-stick') || target.classList.contains('joystick-base'))) {
+      return;
+    }
+
     this.touch.active = true;
     this.touch.startX = touch.clientX;
     this.touch.startY = touch.clientY;
@@ -229,6 +262,19 @@ export class InputHandler {
     return { x: normX, z: -normY };
   }
 
+  getRightDragCameraDelta() {
+    // Right mouse drag for camera rotation
+    if (!this.mouse.rightDown || !this.rightDragStart) return { x: 0, y: 0 };
+    const dx = this.mouse.x - this.rightDragStart.x;
+    const dy = this.mouse.y - this.rightDragStart.y;
+    this.rightDragStart = { x: this.mouse.x, y: this.mouse.y };
+    return { x: dx, y: dy };
+  }
+
+  onResize() {
+    // Handled by engine
+  }
+
   update(deltaTime) {
     // Calculate movement direction from keyboard
     let moveX = 0;
@@ -254,27 +300,48 @@ export class InputHandler {
     // Sprint
     const sprint = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
 
-    // Mouse look (pointer lock)
-    if (this.pointerLockActive && this.player) {
+    // Mouse look (pointer lock) — rotates camera AND player faces movement direction
+    if (this.pointerLockActive && this.player && this.cameraController) {
       const sens = 0.002;
-      this.player.rotateY(-this.mouse.deltaX * sens);
-      this.player.rotatePitch(this.mouse.deltaY * sens);
+      this.cameraController.rotate(-this.mouse.deltaX * sens, -this.mouse.deltaY * sens);
     }
 
-    // Touch look (drag on right half of screen)
-    if (this.touch.active && this.player && !this.joystick.active) {
+    // Right mouse drag — rotates camera around fox
+    if (this.mouse.rightDown && this.cameraController) {
+      const drag = this.getRightDragCameraDelta();
+      const sens = 0.003;
+      this.cameraController.rotate(drag.x * sens, drag.y * sens);
+    }
+
+    // Touch look (drag on right half of screen, not over joystick)
+    if (this.touch.active && this.player && this.cameraController && !this.joystick.active) {
       const dx = this.touch.currentX - this.touch.startX;
       const dy = this.touch.currentY - this.touch.startY;
-      const sens = 0.005;
-      this.player.rotateY(-dx * sens);
-      this.player.rotatePitch(dy * sens);
-      this.touch.startX = this.touch.currentX;
-      this.touch.startY = this.touch.currentY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 15) {
+        const sens = 0.004;
+        this.cameraController.rotate(-dx * sens, -dy * sens);
+        this.touch.startX = this.touch.currentX;
+        this.touch.startY = this.touch.currentY;
+      }
     }
 
     if (this.player) {
-      this.player.setMovement(moveX, moveZ, sprint);
+      // Convert movement to camera-relative direction
+      const { camForwardX, camForwardZ, camRightX, camRightZ } = this.getCameraRelativeAxes();
+      const worldX = moveX * camRightX + moveZ * camForwardX;
+      const worldZ = moveX * camRightZ + moveZ * camForwardZ;
+      this.player.setMovement(worldX, worldZ, sprint);
     }
+  }
+
+  getCameraRelativeAxes() {
+    // Get camera's forward and right vectors in world space (horizontal only)
+    if (this.cameraController) {
+      return this.cameraController.getHorizontalAxes();
+    }
+    // Default: camera looks down -Z
+    return { camForwardX: 0, camForwardZ: -1, camRightX: 1, camRightZ: 0 };
   }
 
   dispose() {
@@ -283,12 +350,14 @@ export class InputHandler {
     this.domElement.removeEventListener('mousemove', this.onMouseMove);
     this.domElement.removeEventListener('mousedown', this.onMouseDown);
     this.domElement.removeEventListener('mouseup', this.onMouseUp);
+    this.domElement.removeEventListener('wheel', this.onWheel);
     this.domElement.removeEventListener('contextmenu', this.onContextMenu);
     this.domElement.removeEventListener('click', this.onClick);
     document.removeEventListener('pointerlockchange', this.onPointerLockChange);
     this.domElement.removeEventListener('touchstart', this.onTouchStart);
     this.domElement.removeEventListener('touchmove', this.onTouchMove);
     this.domElement.removeEventListener('touchend', this.onTouchEnd);
+    window.removeEventListener('resize', this.onResize);
   }
 }
 

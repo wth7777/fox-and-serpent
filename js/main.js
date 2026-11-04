@@ -3,12 +3,12 @@
    Initializes all game systems and starts the game loop */
 
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import '../css/style.css';
 import { CARTOON_COLORS } from './cel-shading.js';
 
 // Import our modules
 import { Engine } from './engine.js';
+import { CameraController } from './camera-controller.js';
 import { InputHandler } from './input.js';
 import { FoxCharacter } from './fox-character.js';
 import { Environment } from './environment.js';
@@ -33,7 +33,7 @@ const state = {
 };
 
 // Systems
-let engine, input, fox, environment, audio, save;
+let engine, cameraController, input, fox, environment, audio, save;
 
 // Loading screen elements
 const loadingScreen = document.getElementById('loading-screen');
@@ -58,18 +58,26 @@ async function init() {
     engine.setupLighting();
     console.log('[INIT] Lighting initialized');
 
+    updateLoading(20, 'Setting up camera...');
+    cameraController = new CameraController(engine.camera, null, engine.scene, engine.renderer.domElement);
+    console.log('[INIT] Camera controller initialized');
+
     updateLoading(25, 'Creating environment...');
     environment = new Environment(engine.scene, engine);
     await environment.init();
     console.log('[INIT] Environment initialized');
 
+    // Set collision objects for camera
+    cameraController.setCollisionObjects(environment.getCollisionObjects());
+
     updateLoading(40, 'Creating cartoon fox...');
     fox = new FoxCharacter(engine.scene);
     await fox.init();
+    cameraController.setTarget(fox);
     console.log('[INIT] Fox character initialized');
 
     updateLoading(55, 'Setting up input...');
-    input = new InputHandler(engine.renderer.domElement, fox);
+    input = new InputHandler(engine.renderer.domElement, fox, cameraController);
     console.log('[INIT] Input initialized');
 
     updateLoading(65, 'Initializing audio...');
@@ -130,7 +138,12 @@ function gameLoop(currentTime) {
     environment.update(state.deltaTime);
     audio.update(state.deltaTime);
 
-    updateCamera(deltaTime);
+    // Update camera (camera controller handles follow, rotation, zoom, collision)
+    if (closeUpMode) {
+      updateCloseUpCamera(state.deltaTime);
+    } else if (cameraController) {
+      cameraController.update(state.deltaTime);
+    }
   }
 
   engine.render();
@@ -138,33 +151,23 @@ function gameLoop(currentTime) {
   requestAnimationFrame(gameLoop);
 }
 
-function updateCamera(dt) {
+// Camera close-up mode (start of game)
+function updateCloseUpCamera(dt) {
   if (!fox || !engine.camera) return;
 
-  if (closeUpMode) {
-    closeUpTimer += dt;
-    // Close-up on fox face
-    const foxPos = fox.getPosition();
-    engine.camera.position.lerp(
-      new THREE.Vector3(foxPos.x, foxPos.y + 0.8, foxPos.z + 1.2),
-      dt * 3
-    );
-    engine.camera.lookAt(foxPos.x, foxPos.y + 0.5, foxPos.z);
+  closeUpTimer += dt;
+  // Close-up on fox face
+  const foxPos = fox.getPosition();
+  engine.camera.position.lerp(
+    new THREE.Vector3(foxPos.x, foxPos.y + 0.8, foxPos.z + 1.2),
+    dt * 3
+  );
+  engine.camera.lookAt(foxPos.x, foxPos.y + 0.5, foxPos.z);
 
-    if (closeUpTimer > 4) {
-      closeUpMode = false;
-    }
-  } else {
-    // Normal third-person follow
-    const camOffset = new THREE.Vector3(0, 3, 6);
-    camOffset.applyQuaternion(
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, fox.mesh.rotation.y, 0))
-    );
-    const idealPos = fox.mesh.position.clone().add(camOffset);
-    const idealLook = fox.mesh.position.clone().add(new THREE.Vector3(0, 1.5, 0));
-
-    engine.camera.position.lerp(idealPos, dt * 5);
-    engine.camera.lookAt(idealLook);
+  if (closeUpTimer > 4) {
+    closeUpMode = false;
+    // Hand control back to camera controller
+    cameraController.reset();
   }
 }
 
@@ -236,6 +239,13 @@ window.toggleGraphics = function() {
   showStatus('Graphics: ' + state.graphicsLevel);
 };
 
+window.resetCamera = function() {
+  if (cameraController) {
+    cameraController.reset();
+    showStatus('Camera reset');
+  }
+};
+
 window.toggleSound = function() {
   state.soundEnabled = !state.soundEnabled;
   document.getElementById('menu-sound').textContent = state.soundEnabled ? 'On' : 'Off';
@@ -304,6 +314,13 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && state.playing && !state.gameOver) {
     state.paused = !state.paused;
     document.getElementById('pause-menu').classList.toggle('hidden', !state.paused);
+  }
+  // Reset camera with R key
+  if (e.key === 'r' || e.key === 'R') {
+    if (cameraController) {
+      cameraController.reset();
+      showStatus('Camera reset');
+    }
   }
 });
 
