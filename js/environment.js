@@ -535,7 +535,7 @@ export class Environment {
 
     // Tents
     for (let i = 0; i < 4; i++) {
-      const tentGeo = new ConeGeometry(2, 3, 4);
+      const tentGeo = new THREE.ConeGeometry(2, 3, 4);
       const tentMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a });
       const tent = new THREE.Mesh(tentGeo, tentMat);
       tent.position.set(

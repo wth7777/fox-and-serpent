@@ -18613,7 +18613,7 @@ var CylinderGeometry = class CylinderGeometry extends BufferGeometry {
 * @augments CylinderGeometry
 * @demo scenes/geometry-browser.html#ConeGeometry
 */
-var ConeGeometry$1 = class ConeGeometry$1 extends CylinderGeometry {
+var ConeGeometry = class ConeGeometry extends CylinderGeometry {
 	/**
 	* Constructs a new cone geometry.
 	*
@@ -18654,7 +18654,7 @@ var ConeGeometry$1 = class ConeGeometry$1 extends CylinderGeometry {
 	* @return {ConeGeometry} A new instance.
 	*/
 	static fromJSON(data) {
-		return new ConeGeometry$1(data.radius, data.height, data.radialSegments, data.heightSegments, data.openEnded, data.thetaStart, data.thetaLength);
+		return new ConeGeometry(data.radius, data.height, data.radialSegments, data.heightSegments, data.openEnded, data.thetaStart, data.thetaLength);
 	}
 };
 /**
@@ -42134,7 +42134,7 @@ var Player = class {
 		rightEye.position.set(.12, 1.95, 1.15);
 		rightEye.name = "rightEye";
 		group.add(rightEye);
-		const earGeo = new ConeGeometry$1(.12, .4, 4);
+		const earGeo = new ConeGeometry(.12, .4, 4);
 		const earMat = new MeshStandardMaterial({
 			color: 16739125,
 			roughness: .8
@@ -42583,7 +42583,7 @@ var Environment = class {
 	createGrassTufts() {
 		const count = this.densitySettings[this.graphicsLevel].grass;
 		const grassGroup = new Group();
-		const grassGeo = new ConeGeometry$1(.15, .5, 4);
+		const grassGeo = new ConeGeometry(.15, .5, 4);
 		const grassMat = new MeshStandardMaterial({
 			color: 7048739,
 			roughness: 1
@@ -42793,7 +42793,7 @@ var Environment = class {
 		walls.castShadow = true;
 		walls.receiveShadow = true;
 		group.add(walls);
-		const roof = new Mesh(new ConeGeometry$1(3.2, 2, 4), new MeshStandardMaterial({
+		const roof = new Mesh(new ConeGeometry(3.2, 2, 4), new MeshStandardMaterial({
 			color: 7034691,
 			roughness: 1
 		}));
@@ -43312,7 +43312,7 @@ var SaveSystem = class {
 		reader.readAsText(file);
 	}
 };
-// index.html?html-proxy&index=1.js
+// js/main.js
 var state = {
 	initialized: false,
 	playing: false,
