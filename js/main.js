@@ -14,6 +14,7 @@ import { FoxCharacter } from './fox-character.js';
 import { Environment } from './environment.js';
 import { AudioManager } from './audio.js';
 import { SaveSystem } from './save.js';
+import { DemoScene } from './demo-scene.js';
 
 // Global game state
 const state = {
@@ -33,7 +34,7 @@ const state = {
 };
 
 // Systems
-let engine, cameraController, input, fox, environment, audio, save;
+let engine, cameraController, input, fox, environment, audio, save, demoScene;
 
 // Loading screen elements
 const loadingScreen = document.getElementById('loading-screen');
@@ -131,6 +132,14 @@ function gameLoop(currentTime) {
   const deltaTime = (currentTime - state.lastTime) / 1000;
   state.deltaTime = Math.min(deltaTime, 0.1);
   state.lastTime = currentTime;
+
+  // Demo scene mode
+  if (demoScene && demoScene.isActive) {
+    demoScene.update(state.deltaTime);
+    engine.render();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
 
   if (!state.paused && !state.gameOver && state.playing) {
     input.update(state.deltaTime);
@@ -250,6 +259,30 @@ window.toggleSound = function() {
   state.soundEnabled = !state.soundEnabled;
   document.getElementById('menu-sound').textContent = state.soundEnabled ? 'On' : 'Off';
   audio.toggleSound(state.soundEnabled);
+};
+
+window.showDemoScene = function() {
+  // Hide main menu
+  document.getElementById('main-menu').classList.add('hidden');
+  state.playing = false;
+  state.paused = true;
+
+  // Initialize demo scene if not already
+  if (!demoScene) {
+    demoScene = new DemoScene();
+    demoScene.init(engine.renderer);
+  }
+
+  demoScene.activate();
+  showStatus('Cartoon Demo — 1970s Animated Style');
+};
+
+window.hideDemoScene = function() {
+  if (demoScene) {
+    demoScene.deactivate();
+  }
+  document.getElementById('main-menu').classList.remove('hidden');
+  state.paused = true;
 };
 
 window.showControls = function() {
