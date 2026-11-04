@@ -42548,6 +42548,22 @@ var Environment = class {
 		this.createCave();
 		this.createCastleApproach();
 	}
+	createSkybox() {
+		const skyGeo = new SphereGeometry(500, 32, 32);
+		skyGeo.scale(-1, 1, 1);
+		const skybox = new Mesh(skyGeo, new MeshStandardMaterial({
+			color: 8900331,
+			side: 1,
+			roughness: 1,
+			metalness: 0
+		}));
+		skybox.name = "skybox";
+		skybox.position.set(0, 0, 0);
+		skybox.frustumCulled = false;
+		this.scene.add(skybox);
+		this.objects.push(skybox);
+		this.scene.background = new Color(8900331);
+	}
 	createPath() {
 		const pathPoints = [];
 		for (let i = 0; i <= 100; i++) {

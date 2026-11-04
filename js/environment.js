@@ -90,6 +90,30 @@ export class Environment {
     this.createCastleApproach();
   }
 
+  createSkybox() {
+    // Simple procedural skybox using a large sphere with gradient material
+    // No external textures required
+    const skyGeo = new THREE.SphereGeometry(500, 32, 32);
+    skyGeo.scale(-1, 1, 1); // Invert normals so we see the inside
+
+    const skyMat = new THREE.MeshStandardMaterial({
+      color: 0x87ceeb,
+      side: THREE.BackSide,
+      roughness: 1.0,
+      metalness: 0.0
+    });
+
+    const skybox = new THREE.Mesh(skyGeo, skyMat);
+    skybox.name = 'skybox';
+    skybox.position.set(0, 0, 0);
+    skybox.frustumCulled = false;
+    this.scene.add(skybox);
+    this.objects.push(skybox);
+
+    // Set scene background to match sky color
+    this.scene.background = new THREE.Color(0x87ceeb);
+  }
+
   createPath() {
     // Winding dirt path using a curved ribbon
     const pathPoints = [];
