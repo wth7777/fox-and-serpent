@@ -20,6 +20,7 @@ export class Engine {
   }
 
   async init() {
+    console.log('[INIT] Creating WebGL renderer...');
     // Create renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -28,15 +29,18 @@ export class Engine {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.container.appendChild(this.renderer.domElement);
+    console.log('[INIT] WebGL renderer created');
 
     // Create scene
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87ceeb);
     this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0015);
+    console.log('[INIT] Scene created');
 
     // Create camera
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 4, 8);
+    console.log('[INIT] Camera created');
 
     // OrbitControls (desktop) — will be replaced by custom camera for gameplay
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);

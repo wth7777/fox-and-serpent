@@ -34421,6 +34421,7 @@ var Engine = class {
 		this.resizeObserver = null;
 	}
 	async init() {
+		console.log("[INIT] Creating WebGL renderer...");
 		this.renderer = new WebGLRenderer({
 			antialias: true,
 			powerPreference: "high-performance"
@@ -34431,11 +34432,14 @@ var Engine = class {
 		this.renderer.shadowMap.type = 2;
 		this.renderer.outputColorSpace = SRGBColorSpace;
 		this.container.appendChild(this.renderer.domElement);
+		console.log("[INIT] WebGL renderer created");
 		this.scene = new Scene();
 		this.scene.background = new Color(8900331);
 		this.scene.fog = new FogExp2(8900331, .0015);
+		console.log("[INIT] Scene created");
 		this.camera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, .1, 1e3);
 		this.camera.position.set(0, 4, 8);
+		console.log("[INIT] Camera created");
 		this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 		this.controls.enableDamping = true;
 		this.controls.dampingFactor = .05;
@@ -36306,22 +36310,29 @@ async function init() {
 		updateLoading(0, "Initializing engine...");
 		engine = new Engine("game-container");
 		await engine.init();
+		console.log("[INIT] Engine initialized");
 		updateLoading(15, "Setting up lighting...");
 		engine.setupLighting();
+		console.log("[INIT] Lighting initialized");
 		updateLoading(25, "Creating environment...");
 		environment = new Environment(engine.scene, engine);
 		await environment.init();
+		console.log("[INIT] Environment initialized");
 		updateLoading(40, "Creating cartoon fox...");
 		fox = new FoxCharacter(engine.scene);
 		await fox.init();
+		console.log("[INIT] Fox character initialized");
 		updateLoading(55, "Setting up input...");
 		input = new InputHandler(engine.renderer.domElement, fox);
+		console.log("[INIT] Input initialized");
 		updateLoading(65, "Initializing audio...");
 		audio = new AudioManager();
 		await audio.init();
+		console.log("[INIT] Audio initialized");
 		updateLoading(75, "Loading save data...");
 		save = new SaveSystem();
 		save.init();
+		console.log("[INIT] Save system initialized");
 		updateLoading(90, "Finalizing...");
 		setTimeout(() => {
 			loadingScreen.style.opacity = "0";

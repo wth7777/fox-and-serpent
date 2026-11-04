@@ -52,28 +52,35 @@ async function init() {
     // Create engine
     engine = new Engine('game-container');
     await engine.init();
+    console.log('[INIT] Engine initialized');
 
     updateLoading(15, 'Setting up lighting...');
     engine.setupLighting();
+    console.log('[INIT] Lighting initialized');
 
     updateLoading(25, 'Creating environment...');
     environment = new Environment(engine.scene, engine);
     await environment.init();
+    console.log('[INIT] Environment initialized');
 
     updateLoading(40, 'Creating cartoon fox...');
     fox = new FoxCharacter(engine.scene);
     await fox.init();
+    console.log('[INIT] Fox character initialized');
 
     updateLoading(55, 'Setting up input...');
     input = new InputHandler(engine.renderer.domElement, fox);
+    console.log('[INIT] Input initialized');
 
     updateLoading(65, 'Initializing audio...');
     audio = new AudioManager();
     await audio.init();
+    console.log('[INIT] Audio initialized');
 
     updateLoading(75, 'Loading save data...');
     save = new SaveSystem();
     save.init();
+    console.log('[INIT] Save system initialized');
 
     updateLoading(90, 'Finalizing...');
 
