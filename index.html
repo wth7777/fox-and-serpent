@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#2d4a3e">
+  <title>Fox & Serpent — A Woodland Adventure</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Critical inline styles to prevent layout shift */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      background: #1a2b22;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e8f5e9;
+    }
+    #loading-screen .progress-bar {
+      width: 300px;
+      height: 8px;
+      background: #2d4a3e;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 24px;
+    }
+    #loading-screen .progress-fill {
+      width: 0%;
+      height: 100%;
+      background: #4ade80;
+      transition: width 0.1s;
+    }
+    #loading-screen .loading-text {
+      margin-top: 16px;
+      font-size: 14px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div style="font-size: 32px; font-weight: 700; letter-spacing: 2px;">FOX &amp; SERPENT</div>
+    <div style="font-size: 16px; margin-top: 8px; opacity: 0.7;">A Woodland Adventure</div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="loading-progress"></div>
+    </div>
+    <div class="loading-text" id="loading-text">Initializing...</div>
+  </div>
+
+  <!-- Game Container -->
+  <div id="game-container"></div>
+
+  <!-- UI Overlay -->
+  <div id="ui-overlay">
+    <!-- Top Left: Health -->
+    <div id="hud-health" class="hud-panel">
+      <div class="hud-label">❤️ LIFE</div>
+      <div class="health-bar">
+        <div class="health-fill" id="health-fill"></div>
+      </div>
+    </div>
+
+    <!-- Top Right: Inventory -->
+    <div id="hud-inventory" class="hud-panel">
+      <div class="hud-label">🎯 TREASURE</div>
+      <div id="treasure-count">0</div>
+    </div>
+
+    <!-- Center: Status messages -->
+    <div id="status-message" class="status-panel"></div>
+
+    <!-- Bottom Left: Virtual Joystick (mobile) -->
+    <div id="joystick-container" class="joystick-container hidden">
+      <div id="joystick-base" class="joystick-base"></div>
+      <div id="joystick-stick" class="joystick-stick"></div>
+    </div>
+
+    <!-- Bottom Right: Action Buttons (mobile) -->
+    <div id="action-buttons" class="action-buttons hidden">
+      <button class="action-btn" id="btn-jump">Jump</button>
+      <button class="action-btn" id="btn-attack">Attack</button>
+      <button class="action-btn" id="btn-bow">Bow</button>
+      <button class="action-btn" id="btn-dodge">Dodge</button>
+      <button class="action-btn" id="btn-interact">Interact</button>
+    </div>
+
+    <!-- Bottom Right: Desktop hints -->
+    <div id="desktop-hints" class="desktop-hints hidden">
+      <div class="hint">WASD / Arrows — Move</div>
+      <div class="hint">Mouse — Look Around</div>
+      <div class="hint">Space — Jump &nbsp;|&nbsp; Shift — Sprint</div>
+      <div class="hint">Left Click — Attack &nbsp;|&nbsp; Right Click — Bow</div>
+      <div class="hint">E — Interact &nbsp;|&nbsp; Q — Dodge</div>
+    </div>
+
+    <!-- Pause Menu -->
+    <div id="pause-menu" class="modal hidden">
+      <div class="modal-content">
+        <h2>Paused</h2>
+        <button class="btn btn-primary" onclick="resumeGame()">Resume</button>
+        <button class="btn btn-secondary" onclick="saveGame()">Save Game</button>
+        <button class="btn btn-secondary" onclick="loadGame()">Load Game</button>
+        <button class="btn btn-secondary" onclick="toggleGraphics()">Graphics: <span id="graphics-setting">Medium</span></button>
+        <button class="btn btn-danger" onclick="quitToMenu()">Quit to Menu</button>
+      </div>
+    </div>
+
+    <!-- Game Over -->
+    <div id="game-over-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2 style="color: #ff6b6b;">Defeated</h2>
+        <p id="game-over-reason">The serpent's minions proved too strong.</p>
+        <button class="btn btn-primary" onclick="restartLevel()">Try Again</button>
+        <button class="btn btn-secondary" onclick="quitToMenu()">Main Menu</button>
+      </div>
+    </div>
+
+    <!-- Victory -->
+    <div id="victory-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2 style="color: #4ade80;">Victory!</h2>
+        <p id="victory-text">You have prevailed.</p>
+        <button class="btn btn-primary" onclick="nextLevel()">Continue</button>
+      </div>
+    </div>
+
+    <!-- Main Menu -->
+    <div id="main-menu" class="modal">
+      <div class="modal-content menu-content">
+        <h1 style="font-size: 48px; margin-bottom: 8px;">FOX &amp; SERPENT</h1>
+        <div style="font-size: 18px; opacity: 0.8; margin-bottom: 32px;">A Woodland Adventure</div>
+        <button class="btn btn-primary btn-large" onclick="startNewGame()">New Game</button>
+        <button class="btn btn-secondary btn-large" onclick="loadGame()">Continue</button>
+        <button class="btn btn-secondary btn-large" onclick="toggleGraphics()">Graphics: <span id="menu-graphics-setting">Medium</span></button>
+        <button class="btn btn-secondary btn-large" onclick="showControls()">Controls</button>
+        <button class="btn btn-danger btn-large" onclick="toggleSound()">Sound: <span id="menu-sound">On</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import map for Three.js modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./node_modules/three/build/three.module.js",
+        "three/addons/": "./node_modules/three/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+    import { MeshoptDecoder } from 'three/addons/decoders/MeshoptDecoder.js';
+
+    // Import our modules
+    import { Engine } from './js/engine.js';
+    import { InputHandler } from './js/input.js';
+    import { Player } from './js/player.js';
+    import { Environment } from './js/environment.js';
+    import { AudioManager } from './js/audio.js';
+    import { SaveSystem } from './js/save.js';
+
+    // Global game state
+    const state = {
+      initialized: false,
+      playing: false,
+      paused: false,
+      gameOver: false,
+      graphicsLevel: 'medium',
+      soundEnabled: true,
+      health: 100,
+      maxHealth: 100,
+      treasure: 0,
+      score: 0,
+      level: 1,
+      deltaTime: 0,
+      lastTime: 0
+    };
+
+    // Systems
+    let engine, input, player, environment, audio, save;
+
+    // Loading screen elements
+    const loadingScreen = document.getElementById('loading-screen');
+    const loadingProgress = document.getElementById('loading-progress');
+    const loadingText = document.getElementById('loading-text');
+
+    // Initialize
+    async function init() {
+      try {
+        updateLoading(0, 'Initializing engine...');
+
+        // Create engine
+        engine = new Engine('game-container');
+        await engine.init();
+
+        updateLoading(15, 'Setting up lighting...');
+        engine.setupLighting();
+
+        updateLoading(25, 'Creating environment...');
+        environment = new Environment(engine.scene, engine);
+        await environment.init();
+
+        updateLoading(40, 'Loading character...');
+        player = new Player(engine.scene, engine.camera);
+        await player.init();
+
+        updateLoading(55, 'Setting up input...');
+        input = new InputHandler(engine.renderer.domElement, player);
+
+        updateLoading(65, 'Initializing audio...');
+        audio = new AudioManager();
+        await audio.init();
+
+        updateLoading(75, 'Loading save data...');
+        save = new SaveSystem();
+        save.init();
+
+        updateLoading(90, 'Finalizing...');
+
+        // Hide loading screen
+        setTimeout(() => {
+          loadingScreen.style.opacity = '0';
+          setTimeout(() => {
+            loadingScreen.style.display = 'none';
+            showMainMenu();
+          }, 500);
+        }, 300);
+
+        updateLoading(100, 'Ready!');
+
+        state.initialized = true;
+        window.state = state;
+
+        // Start game loop
+        state.lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+
+      } catch (err) {
+        console.error('Initialization failed:', err);
+        loadingText.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    function updateLoading(percent, text) {
+      if (loadingProgress) loadingProgress.style.width = percent + '%';
+      if (loadingText) loadingText.textContent = text;
+    }
+
+    // Game Loop
+    function gameLoop(currentTime) {
+      if (!state.initialized) return;
+
+      const deltaTime = (currentTime - state.lastTime) / 1000;
+      state.deltaTime = Math.min(deltaTime, 0.1); // Cap delta
+      state.lastTime = currentTime;
+
+      if (!state.paused && !state.gameOver && state.playing) {
+        input.update(state.deltaTime);
+        player.update(state.deltaTime);
+        environment.update(state.deltaTime);
+        audio.update(state.deltaTime);
+      }
+
+      engine.render();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Game flow
+    window.showMainMenu = function() {
+      document.getElementById('main-menu').classList.remove('hidden');
+      document.getElementById('ui-overlay').style.display = 'flex';
+      state.playing = false;
+      state.paused = true;
+      audio.playMenuMusic();
+    };
+
+    window.startNewGame = function() {
+      document.getElementById('main-menu').classList.add('hidden');
+      state.playing = true;
+      state.paused = false;
+      state.gameOver = false;
+      state.health = state.maxHealth;
+      state.treasure = 0;
+      updateHUD();
+      environment.resetLevel();
+      player.resetPosition();
+      audio.playGameMusic();
+    };
+
+    window.loadGame = function() {
+      const data = save.load();
+      if (data) {
+        state.health = data.health || 100;
+        state.treasure = data.treasure || 0;
+        state.score = data.score || 0;
+        updateHUD();
+      }
+      document.getElementById('main-menu').classList.add('hidden');
+      state.playing = true;
+      state.paused = false;
+      environment.resetLevel();
+      player.resetPosition();
+      audio.playGameMusic();
+    };
+
+    window.saveGame = function() {
+      save.save({
+        health: state.health,
+        treasure: state.treasure,
+        score: state.score,
+        level: state.level
+      });
+      showStatus('Game saved!');
+    };
+
+    window.resumeGame = function() {
+      document.getElementById('pause-menu').classList.add('hidden');
+      state.paused = false;
+    };
+
+    window.toggleGraphics = function() {
+      const levels = ['low', 'medium', 'high', 'ultra'];
+      const currentIdx = levels.indexOf(state.graphicsLevel);
+      const nextIdx = (currentIdx + 1) % levels.length;
+      state.graphicsLevel = levels[nextIdx];
+      document.getElementById('graphics-setting').textContent = state.graphicsLevel.charAt(0).toUpperCase() + state.graphicsLevel.slice(1);
+      document.getElementById('menu-graphics-setting').textContent = state.graphicsLevel.charAt(0).toUpperCase() + state.graphicsLevel.slice(1);
+      environment.setGraphicsLevel(state.graphicsLevel);
+      showStatus('Graphics: ' + state.graphicsLevel);
+    };
+
+    window.toggleSound = function() {
+      state.soundEnabled = !state.soundEnabled;
+      document.getElementById('menu-sound').textContent = state.soundEnabled ? 'On' : 'Off';
+      audio.toggleSound(state.soundEnabled);
+    };
+
+    window.showControls = function() {
+      showStatus('WASD/Arrows: Move • Mouse: Look • Space: Jump • Click: Attack • E: Interact');
+    };
+
+    window.quitToMenu = function() {
+      state.playing = false;
+      state.paused = true;
+      document.getElementById('pause-menu').classList.add('hidden');
+      document.getElementById('game-over-modal').classList.add('hidden');
+      showMainMenu();
+    };
+
+    window.restartLevel = function() {
+      document.getElementById('game-over-modal').classList.add('hidden');
+      startNewGame();
+    };
+
+    window.nextLevel = function() {
+      document.getElementById('victory-modal').classList.add('hidden');
+      state.level++;
+      environment.resetLevel();
+      player.resetPosition();
+      state.playing = true;
+      state.paused = false;
+    };
+
+    window.showGameOver = function(reason) {
+      document.getElementById('game-over-reason').textContent = reason || 'Defeated';
+      document.getElementById('game-over-modal').classList.remove('hidden');
+      state.gameOver = true;
+      state.playing = false;
+    };
+
+    window.showVictory = function(text) {
+      document.getElementById('victory-text').textContent = text || 'You have prevailed.';
+      document.getElementById('victory-modal').classList.remove('hidden');
+      state.playing = false;
+      state.paused = true;
+    };
+
+    window.showStatus = function(msg) {
+      const el = document.getElementById('status-message');
+      el.textContent = msg;
+      el.style.opacity = '1';
+      setTimeout(() => { el.style.opacity = '0'; }, 3000);
+    };
+
+    function updateHUD() {
+      const healthFill = document.getElementById('health-fill');
+      if (healthFill) {
+        const pct = (state.health / state.maxHealth) * 100;
+        healthFill.style.width = Math.max(0, pct) + '%';
+      }
+      const treasureEl = document.getElementById('treasure-count');
+      if (treasureEl) treasureEl.textContent = state.treasure;
+    }
+
+    // Pause on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && state.playing && !state.gameOver) {
+        state.paused = !state.paused;
+        document.getElementById('pause-menu').classList.toggle('hidden', !state.paused);
+      }
+    });
+
+    // Start
+    init();
+  </script>
+</body>
+</html>
